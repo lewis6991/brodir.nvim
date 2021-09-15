@@ -46,7 +46,3 @@ nnoremap <silent> <Plug>(dirvish_vsplit_up) <cmd>exe 'vsplit +Dirvish\ %:p'.repe
 highlight default link DirvishSuffix   SpecialKey
 highlight default link DirvishPathTail Directory
 highlight default link DirvishArg      Todo
-
-if mapcheck('-', 'n') ==# '' && !hasmapto('<Plug>(dirvish_up)', 'n')
-  nmap - <Plug>(dirvish_up)
-endif

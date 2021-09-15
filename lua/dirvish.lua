@@ -149,9 +149,12 @@ function M.save_state(d)
 end
 
 local function is_valid_altbuf(bnr)
+  local bdirvish = api.nvim_buf_call(bnr, function()
+    return vim.b.dirvish or {}
+  end)
   return bnr ~= api.nvim_get_current_buf()
-    and fn.bufexists(bnr) == 1
-    and vim.tbl_isempty(api.nvim_buf_get_var(bnr, 'dirvish') or {})
+    and api.nvim_buf_is_valid(bnr)
+    and vim.tbl_isempty(bdirvish)
 end
 
 local function try_visit(bnr, noau)
@@ -160,9 +163,9 @@ local function try_visit(bnr, noau)
     -- allow autocmds (else no syntax highlighting; #13).
     noau = (noau and api.nvim_buf_is_loaded(bnr)) and 'noau' or ''
     vim.cmd(string.format('silent keepjumps %s noswapfile buffer %d', noau, bnr))
-    return 1
-    end
-  return 0
+    return true
+  end
+  return false
 end
 
 function M.buf_close()
@@ -171,13 +174,7 @@ function M.buf_close()
     return
   end
 
-  local altbuf, prevbuf = d.altbuf or 0, d.prevbuf or 0
-  local found_alt = try_visit(altbuf, 1)
-  if not try_visit(prevbuf, 0)
-    and not found_alt
-      and (1 == fn.bufnr('%') or (prevbuf ~= fn.bufnr('%') and altbuf ~= fn.bufnr('%'))) then
-    vim.cmd[[bdelete]]
-  end
+  vim.cmd[[bdelete!]]
 end
 
 local function list_dir(dir)
@@ -200,8 +197,8 @@ local function set_altbuf(bnr)
   vim.cmd('let @# = '..bnr)
 
   local curbuf = api.nvim_get_current_buf()
-  if try_visit(bnr, 1) then
-    local noau = fn.bufloaded(curbuf) and 'noau' or ''
+  if try_visit(bnr, true) then
+    local noau = api.nvim_buf_is_loaded(curbuf) and 'noau' or ''
     -- Return to the current buffer.
     vim.cmd(string.format('silent keepjumps %s noswapfile buffer %d', noau, curbuf))
   end
@@ -212,18 +209,12 @@ local function should_reload()
 end
 
 -- Performs `cmd` in all windows showing `bname`.
-local function bufwin_do(cmd, bname)
-  vim.tbl_map(
-    function(v)
-      return fn.win_execute(v.winid, 'silent noautocmd keepjumps '..cmd)
-    end,
-    vim.tbl_filter(
-      function(v)
-        return bname == api.nvim_buf_get_name(v.bufnr)
-      end,
-      fn.getwininfo()
-    )
-  )
+local function bufwin_do(bname, cmd)
+  for _, win in ipairs(api.nvim_list_wins()) do
+    if bname == api.nvim_buf_get_name(api.nvim_win_get_buf(win)) then
+      api.nvim_win_call(win, cmd)
+    end
+  end
 end
 
 function M.set_args(...)
@@ -259,7 +250,9 @@ function M.buf_render(dir, lastpath)
   end
 
   if not isnew then
-    bufwin_do('let w:dirvish["_view"] = winsaveview()', bname)
+    bufwin_do(bname, function()
+      vim.w.dirvish._view = fn.winsaveview()
+    end)
   end
 
   local ul = vim.bo.undolevels
@@ -275,13 +268,15 @@ function M.buf_render(dir, lastpath)
   vim.bo.undolevels = ul
 
   if not isnew then
-    bufwin_do('call winrestview(w:dirvish["_view"])', bname)
+    bufwin_do(bname, function()
+      fn.winrestview(vim.w.dirvish._view)
+    end)
   end
 
-  if lastpath == '' then
+  if lastpath ~= '' then
     local pat = vim.g.dirvish_relative_paths and fnamemodify(lastpath, ':p:.') or lastpath
     pat = pat == '' and lastpath or pat  -- no longer in CWD
-    fn.search('\\V\\^'..fn.escape(pat, '\\')..'\\$', 'cw')
+    fn.search([[\V\^]]..pat..'\\$', 'cw')
   end
   -- Place cursor on the tail (last path segment).
   fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
@@ -409,7 +404,6 @@ function M.open_dir(d, reload)
   if reload or should_reload() then
     M.buf_render(vim.b.dirvish._dir, vim.b.dirvish.lastpath or '')
     -- Set up Dirvish before any other `FileType dirvish` handler.
-    vim.cmd('source '..fn.fnameescape(srcdir..'/ftplugin/dirvish.vim'))
     local curwin = api.nvim_win_get_number(0)
     vim.bo.filetype = 'dirvish'
 
@@ -441,7 +435,7 @@ function M.open(firstline, lastline, args)
 
   local d = {}
   local is_uri    = fn.match(args[1], '^\\w\\+:[\\/][\\/]') ~= -1
-  local from_path = api.nvim_buf_get_name(0)
+  local from_path = fnamemodify(api.nvim_buf_get_name(0), ':p')
   local to_path   = fnamemodify(args[1], ':p') -- resolves to CWD if a:1 is empty
 
   d._dir = fn.filereadable(to_path) == 1 and fnamemodify(to_path, ':p:h') or to_path
@@ -467,17 +461,73 @@ function M.open(firstline, lastline, args)
   M.open_dir(d, reloading)
 end
 
+function M.open1(cmd, bg)
+  local path = vim.fn.getline('.')
+  if vim.fn.isdirectory(path) == 1 then
+    vim.fn['dirvish#open'](cmd, bg)
+  else
+    vim.cmd'bwipeout'
+    vim.cmd(cmd..' '..path)
+  end
+end
+
+function M.open_float()
+  local lines   = vim.o.lines
+  local columns = vim.o.columns
+  local width   = vim.fn.float2nr(columns * 0.3)
+  local height  = vim.fn.float2nr(lines * 0.8)
+  local top     = ((lines - height) / 2) - 1
+  local left    = columns - width
+  local path    = vim.fn.expand('%:p')
+  local fdir    = vim.fn.expand('%:h')
+  vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true, {
+    relative = 'editor',
+    row      = top,
+    col      = left,
+    width    = width,
+    height   = height,
+    style    = 'minimal',
+    border   = 'single'
+  })
+
+  if fdir == '' then
+    fdir = '.'
+  end
+
+  vim.fn['dirvish#open'](fdir)
+
+  if path ~= '' then
+    vim.fn.search('\\V\\^'..vim.fn.escape(path, '\\')..'\\$', 'cw')
+  end
+end
+
 function M.setup()
   local function keymap(mode, l, r)
     api.nvim_set_keymap(mode, l, r, {noremap=true, silent=true})
   end
 
-  keymap('n', '<Plug>(dirvish_quit)' , [[<cmd>lua package.loaded.dirvishbuf_close()<CR>]])
-  keymap('n', '<Plug>(dirvish_quit)' , [[<cmd>lua package.loaded.dirvishbuf_close()<CR>]])
+  keymap('n', '<Plug>(dirvish_quit)' , [[<cmd>lua package.loaded.dirvish.buf_close()<CR>]])
+  keymap('n', '<Plug>(dirvish_quit)' , [[<cmd>lua package.loaded.dirvish.buf_close()<CR>]])
   keymap('n', '<Plug>(dirvish_arg)'  , [[<cmd>lua package.loaded.dirvish.set_args({vim.fn.getline('.')})<CR>]])
   keymap('x', '<Plug>(dirvish_arg)'  , [[<cmd>lua package.loaded.dirvish.set_args(vim.fn.getline("'<", "'>"))<CR>]])
   keymap('n', '<Plug>(dirvish_K)'    , [[<cmd>lua package.loaded.dirvish.info({vim.fn.getline('.')},vim.v.count)<CR>]])
   keymap('x', '<Plug>(dirvish_K)'    , [[<cmd>lua package.loaded.dirvish.info(vim.fn.getline("'<", "'>"),vim.v.count)<CR>]])
+
+  api.nvim_set_keymap('n', '-', '<cmd>lua package.loaded.dirvish.open_float()<CR>' , {silent=true})
+
+  vim.cmd[[
+  augroup dirvish_config | augroup END
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> <CR>  <cmd>lua package.loaded.dirvish.open1('edit'   , false)<CR>
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> v     <cmd>lua package.loaded.dirvish.open1('vsplit' , false)<CR>
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> V     <cmd>lua package.loaded.dirvish.open1('vsplit' , true)<CR>
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> s     <cmd>lua package.loaded.dirvish.open1('split'  , false)<CR>
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> S     <cmd>lua package.loaded.dirvish.open1('split'  , true)<CR>
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> t     <cmd>lua package.loaded.dirvish.open1('tabedit', false)<CR>
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> T     <cmd>lua package.loaded.dirvish.open1('tabedit', true)<CR>
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> -     <Plug>(dirvish_up)
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> <ESC> <Plug>(dirvish_quit)
+  autocmd dirvish_config FileType dirvish nmap <silent> <buffer> q     <Plug>(dirvish_quit)
+  ]]
 end
 
 M.setup()
