@@ -3,13 +3,9 @@ if exists('g:loaded_dirvish') || &cp || &cpo =~# 'C'
 endif
 let g:loaded_dirvish = 1
 
-let s:lua_module = luaeval('require("dirvish")')
+lua require("dirvish")
 
-function! dirvish#open(...) range abort
-  call s:lua_module.open(a:firstline, a:lastline, a:000)
-endfunction
-
-command! -bar -nargs=? -complete=dir Dirvish call dirvish#open(<q-args>)
+command! -bar -nargs=? -complete=dir Dirvish lua package.loaded.dirvish.open(<f-args>)
 
 function! s:isdir(dir)
   return !empty(a:dir) && (isdirectory(a:dir) ||
@@ -39,10 +35,3 @@ augroup dirvish
   autocmd ShellCmdPost * if exists('b:dirvish') | exe 'Dirvish %' | endif
 augroup END
 
-nnoremap <silent> <Plug>(dirvish_up)        <cmd>exe 'Dirvish %:p'.repeat(':h',v:count1)<CR>
-nnoremap <silent> <Plug>(dirvish_split_up)  <cmd>exe 'split +Dirvish\ %:p'.repeat(':h',v:count1)<CR>
-nnoremap <silent> <Plug>(dirvish_vsplit_up) <cmd>exe 'vsplit +Dirvish\ %:p'.repeat(':h',v:count1)<CR>
-
-highlight default link DirvishSuffix   SpecialKey
-highlight default link DirvishPathTail Directory
-highlight default link DirvishArg      Todo
