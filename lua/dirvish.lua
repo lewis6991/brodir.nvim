@@ -62,11 +62,6 @@ local function normalize_dir(dir, silent)
   return dir
 end
 
-local function parent_dir(dir)
-  local mod = isdirectory(dir) and ':p:h:h' or ':p:h'
-  return normalize_dir(fnamemodify(dir, mod))
-end
-
 local function suf()
   local m = vim.g.dirvish_mode or 1
   return type(m) == 'number' and m <= 1
@@ -74,15 +69,6 @@ end
 
 local function globlist(dir_esc, pat)
   return fn.globpath(dir_esc, pat, not suf(), 1)
-end
-
-function M.buf_close()
-  -- local d = vim.w.dirvish or {}
-  -- if vim.tbl_isempty(d) then
-  --   return
-  -- end
-
-  vim.cmd[[bdelete!]]
 end
 
 local function list_dir(dir)
@@ -118,27 +104,18 @@ local function get_or_create_win(buf)
     border   = 'single'
   })
 
-  -- local bhas, bdirvish = pcall(api.nvim_buf_get_var, buf, 'dirvish')
-  -- api.nvim_win_set_var(win, 'dirvish', bhas and bdirvish or {})
-  api.nvim_win_set_option(win, 'cursorline'   , true)
-  api.nvim_win_set_option(win, 'wrap'         , false)
-  api.nvim_win_set_option(win, 'concealcursor', 'nvc')
-  api.nvim_win_set_option(win, 'conceallevel' , 2)
-
   return win
 end
 
-local function get_or_create_buf()
+local function get_or_create_buf(name)
   for _, b in ipairs(api.nvim_list_bufs()) do
     if api.nvim_buf_get_option(b, 'filetype') == 'dirvish' then
       return b
+    elseif normalize_dir(api.nvim_buf_get_name(b), true) == name then
+      return b
     end
   end
-  local buf = api.nvim_create_buf(false, true)
-  api.nvim_buf_set_option(buf, 'filetype', 'dirvish')
-  api.nvim_buf_set_option(buf, 'buftype' , 'nofile')
-  api.nvim_buf_set_option(buf, 'swapfile', false)
-  return buf
+  return api.nvim_create_buf(false, true)
 end
 
 function M.open(path, splitcmd)
@@ -154,7 +131,7 @@ function M.open(path, splitcmd)
 
   if splitcmd then
     if fn.filereadable(path) == 1 then
-      vim.cmd'bwipeout'
+      vim.cmd'bwipeout' -- close the dirvish buffer
       vim.cmd(splitcmd..' '..fn.fnameescape(path))
       return
     end
@@ -164,63 +141,44 @@ function M.open(path, splitcmd)
     end
   end
 
-  local is_uri    = fn.match(path, '^\\w\\+:[\\/][\\/]') ~= -1
+  local is_uri = fn.match(path, '^\\w\\+:[\\/][\\/]') ~= -1
+
+  local to_path = fnamemodify(path, ':p') -- resolves to CWD if a:1 is empty
+  local dir = fn.filereadable(to_path) == 1 and fnamemodify(to_path, ':p:h') or to_path
+  dir = normalize_dir(dir, is_uri)
+
+  if not isdirectory(dir) then
+    api.nvim_err_writeln('dirvish: fatal: buffer name is not a directory: '..dir)
+    return
+  elseif dir == '' then  -- normalize_dir() already showed error.
+    return
+  end
+
   local from_path = fnamemodify(api.nvim_buf_get_name(0), ':p')
-  local to_path   = fnamemodify(path, ':p') -- resolves to CWD if a:1 is empty
 
-  local buf = get_or_create_buf()
-  get_or_create_win(buf)
+  local buf = get_or_create_buf(dir)
 
-  local ok, d = pcall(api.nvim_buf_get_var, buf, 'dirvish')
-  if not ok then
-    d = {}
-  end
+  api.nvim_buf_set_option(buf, 'filetype', 'dirvish')
+  api.nvim_buf_set_option(buf, 'buftype' , 'nofile')
+  api.nvim_buf_set_option(buf, 'swapfile', false)
+  api.nvim_buf_set_name(buf, dir)
 
-  d.dir = fn.filereadable(to_path) == 1 and fnamemodify(to_path, ':p:h') or to_path
-  d.dir = normalize_dir(d.dir, is_uri)
-  -- Fallback to CWD for URIs. #127
-  if d.dir == '' and is_uri then
-    d.dir = normalize_dir(fn.getcwd(), is_uri)
-  end
+  local win = get_or_create_win(buf)
 
-  if d.dir == '' then  -- normalize_dir() already showed error.
-    return
-  end
+  api.nvim_win_set_option(win, 'cursorline'   , true)
+  api.nvim_win_set_option(win, 'wrap'         , false)
+  api.nvim_win_set_option(win, 'concealcursor', 'nvc')
+  api.nvim_win_set_option(win, 'conceallevel' , 2)
 
-  if not is_uri and d.dir == parent_dir(from_path) then
-    d.lastpath = from_path  -- Save lastpath when navigating _up_.
-  end
-
-  api.nvim_buf_set_var(buf, 'dirvish', d)
-
-  local bufname = fn.bufname(buf)
-
-  -- Use :file to force a normalized path.
-  -- - Avoids ".././..", ".", "./", etc. (breaks %:p, not updated on :cd).
-  -- - Avoids [Scratch] in some cases (":e ~/" on Windows).
-  if bufname ~= d.dir then
-    vim.cmd('silent noswapfile file '..fn.fnameescape(d.dir))
-    bufname = fn.bufname(buf)
-  end
-
-  if not isdirectory(bufname) then -- sanity check
-    error('invalid directory: '..bufname)
-  end
-
-  if not isdirectory(bufname) then
-    api.nvim_err_writeln('dirvish: fatal: buffer name is not a directory: '..bufname)
-    return
-  end
-
-  api.nvim_buf_set_lines(buf, 0, -1, false, list_dir(d.dir))
+  api.nvim_buf_set_lines(buf, 0, -1, false, list_dir(dir))
 
   if type(vim.g.dirvish_mode) == 'string' then -- Apply user's filter.
-    vim.cmd(vim.g.dirvish_mode)
+    api.nvim_buf_call(buf, function()
+      vim.cmd(vim.g.dirvish_mode)
+    end)
   end
 
-  if d.lastpath ~= '' then
-    fn.search([[\V\^]]..d.lastpath..'\\$', 'cw')
-  end
+  fn.search([[\V\^]]..from_path..'\\$', 'cw')
 
   -- Place cursor on the tail (last path segment).
   fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
@@ -234,7 +192,7 @@ function M.setup()
   keymap('n', '<Plug>(dirvish_up)'       , [[<cmd>exe 'Dirvish %:p'.repeat(':h',v:count1)<CR>]])
   keymap('n', '<Plug>(dirvish_split_up)' , [[<cmd>exe 'split +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
   keymap('n', '<Plug>(dirvish_vsplit_up)', [[<cmd>exe 'vsplit +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
-  keymap('n', '<Plug>(dirvish_quit)'     , [[<cmd>lua package.loaded.dirvish.buf_close()<CR>]])
+  keymap('n', '<Plug>(dirvish_quit)'     , [[<cmd>bdelete!<CR>]])
   keymap('n', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info(false)<CR>]])
   keymap('x', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info(true)<CR>]])
 

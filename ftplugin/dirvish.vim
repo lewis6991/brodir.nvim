@@ -16,9 +16,10 @@ if !hasmapto('<Plug>(dirvish_K)', 'n')
   xmap <nowait><buffer> K <Plug>(dirvish_K)
 endif
 
-nnoremap <buffer><silent> <Plug>(dirvish_up) :<C-U>exe "Dirvish %:h".repeat(":h",v:count1)<CR>
-nnoremap <buffer><silent> <Plug>(dirvish_split_up) :<C-U>exe 'split +Dirvish\ %:h'.repeat(':h',v:count1)<CR>
+nnoremap <buffer><silent> <Plug>(dirvish_up)        :<C-U>exe "Dirvish %:h".repeat(":h",v:count1)<CR>
+nnoremap <buffer><silent> <Plug>(dirvish_split_up)  :<C-U>exe 'split +Dirvish\ %:h'.repeat(':h',v:count1)<CR>
 nnoremap <buffer><silent> <Plug>(dirvish_vsplit_up) :<C-U>exe 'vsplit +Dirvish\ %:h'.repeat(':h',v:count1)<CR>
+
 if !hasmapto('<Plug>(dirvish_up)', 'n')
   nmap <nowait><buffer> - <Plug>(dirvish_up)
 endif
@@ -42,9 +43,6 @@ nnoremap <nowait><buffer><silent> <C-p> <C-\><C-n>k:call feedkeys("p")<CR>
 
 nnoremap <buffer><silent> R :<C-U><C-R>=v:count ? ':let g:dirvish_mode='.v:count.'<Bar>' : ''<CR>Dirvish %<CR>
 nnoremap <buffer><silent>   g?    :help dirvish-mappings<CR>
-
-nnoremap <expr><nowait><buffer> . ":<C-u>".(v:count ? "Shdo".(v:count?"!":"")." {}" : ("! ".shellescape(fnamemodify(getline("."),":."))))."<Home><C-Right>"
-nnoremap <expr><nowait><buffer> cd ":<C-u>".(v:count ? "cd" : "lcd")." %<Bar>pwd<CR>"
 
 " Buffer-local / and ? mappings to skip the concealed path fragment.
 nnoremap <buffer> / /\ze[^/]*[/]\=$<Home>
