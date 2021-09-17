@@ -2,7 +2,10 @@ local fn, api = vim.fn, vim.api
 
 local M = {}
 
+local ns = api.nvim_create_namespace('dirvish')
+
 local fnamemodify = fn.fnamemodify
+local format = string.format
 
 local function getline(n)
   return api.nvim_buf_get_lines(0, n, n+1, false)[1]
@@ -13,30 +16,35 @@ local function isdirectory(d)
   return stat and stat.type == 'directory'
 end
 
-function M.info(selection)
+function M.info()
   local dirsize = vim.v.count
-  local paths = selection and fn.getline("'<", "'>") or {fn.getline('.')}
+  local paths = api.nvim_buf_get_lines(0, 0, -1, false)
 
-  for _, f in ipairs(paths) do
+  for i, f in ipairs(paths) do
     -- Slash decides how getftype() classifies directory symlinks. #138
     local noslash = fn.substitute(f, fn.escape('/','\\')..'$', '', 'g')
-    local fname = #paths < 2 and '' or string.format('%12.12s ', fnamemodify(f:gsub('[\\/]+$', ''), ':t'))
 
     local size
     if fn.getfsize(f) ~= -1 and dirsize == 1 then
       size = fn.matchstr(fn.system('du -hs '..fn.shellescape(f)), '\\S\\+')
     else
-      size = string.format('%.2f', fn.getfsize(f)/1000)..'K'
+      size = format('%.2f', fn.getfsize(f)/1000)..'K'
     end
     if fn.getfsize(f) == -1 then
       print('?')
     else
       local ty = fn.getftype(noslash):sub(1, 1)
       local time = fn.strftime('%Y-%m-%d.%H:%M:%S', fn.getftime(f))
-      print(
-        string.format('%s%s %s %s %s', fname, ty, fn.getfperm(f), time, size)
+      local msg = format('%s %s %s %s ', ty, fn.getfperm(f), time, size)
         ..('link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.'))
-      )
+      local id = api.nvim_buf_set_extmark(0, ns, i-1, 0, {
+        virt_text = {{ msg , 'Comment' }},
+        virt_text_pos = 'right_align'
+      })
+
+      vim.cmd(format(
+        [[autocmd CursorMoved <buffer> ++once lua vim.api.nvim_buf_del_extmark(%d, %d, %d)]], 0, ns, id
+      ))
     end
   end
 end
@@ -94,15 +102,22 @@ local function get_or_create_win(buf)
   local height  = fn.float2nr(lines * 0.8)
   local top     = ((lines - height) / 2) - 1
   local left    = columns - width
-  local win = api.nvim_open_win(buf, true, {
-    relative = 'editor',
-    row      = top,
-    col      = left,
-    width    = width,
-    height   = height,
-    style    = 'minimal',
-    border   = 'single'
-  })
+  local win
+
+  if api.nvim_buf_get_name(0) == '' then
+    win = api.nvim_get_current_win()
+    api.nvim_win_set_buf(win, buf)
+  else
+    win = api.nvim_open_win(buf, true, {
+      relative = 'editor',
+      row      = top,
+      col      = left,
+      width    = width,
+      height   = height,
+      style    = 'minimal',
+      border   = 'single'
+    })
+  end
 
   -- Set the alternate buffer to itself
   vim.fn.setreg('#', buf)
@@ -135,22 +150,21 @@ local function buf_set_name(buf, name)
   end)
 end
 
-local ns = api.nvim_create_namespace('dirvish')
-
 local function highlight_open_paths(buf)
   local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
 
+  local bufs = {}
   for _, b in ipairs(api.nvim_list_bufs()) do
     local name = api.nvim_buf_get_name(b)
+    bufs[name] = b
+  end
 
-    for i, l in ipairs(lines) do
-      if name == l then
-        api.nvim_buf_set_extmark(buf, ns, i-1, 0, {
-          hl_group = 'DirvishOpenBuf',
-          end_col = #l
-        })
-        break
-      end
+  for i, l in ipairs(lines) do
+    if bufs[l] then
+      api.nvim_buf_set_extmark(buf, ns, i-1, 0, {
+        hl_group = 'DirvishOpenBuf',
+        end_col = #l
+      })
     end
   end
 end
@@ -172,6 +186,7 @@ local function buf_render(dir, from_path)
   api.nvim_win_set_option(win, 'concealcursor', 'nvc')
   api.nvim_win_set_option(win, 'conceallevel' , 2)
 
+  api.nvim_buf_set_option(buf, 'modifiable', true)
   api.nvim_buf_set_lines(buf, 0, -1, false, list_dir(dir))
 
   if type(vim.g.dirvish_mode) == 'string' then -- Apply user's filter.
@@ -179,6 +194,8 @@ local function buf_render(dir, from_path)
       vim.cmd(vim.g.dirvish_mode)
     end)
   end
+
+  api.nvim_buf_set_option(buf, 'modifiable' , false)
 
   highlight_open_paths(buf)
 
@@ -205,7 +222,9 @@ function M.open(path, splitcmd)
 
   if splitcmd then
     if fn.filereadable(path) == 1 then
-      vim.cmd'bwipeout' -- close the dirvish buffer
+      if fn.win_gettype() == 'popup' then
+        vim.cmd'bwipeout' -- close the dirvish float
+      end
       vim.cmd(splitcmd..' '..fn.fnameescape(path))
       return
     end
@@ -241,8 +260,8 @@ function M.setup()
   keymap('n', '<Plug>(dirvish_split_up)' , [[<cmd>exe 'split +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
   keymap('n', '<Plug>(dirvish_vsplit_up)', [[<cmd>exe 'vsplit +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
   keymap('n', '<Plug>(dirvish_quit)'     , [[<cmd>bdelete!<CR>]])
-  keymap('n', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info(false)<CR>]])
-  keymap('x', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info(true)<CR>]])
+  keymap('n', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info()<CR>]])
+  keymap('x', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info()<CR>]])
 
   api.nvim_set_keymap('n', '-', '<cmd>lua package.loaded.dirvish.open()<CR>' , {silent=true})
 
