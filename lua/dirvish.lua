@@ -104,6 +104,9 @@ local function get_or_create_win(buf)
     border   = 'single'
   })
 
+  -- Set the alternate buffer to itself
+  vim.fn.setreg('#', buf)
+
   return win
 end
 
@@ -111,11 +114,78 @@ local function get_or_create_buf(name)
   for _, b in ipairs(api.nvim_list_bufs()) do
     if api.nvim_buf_get_option(b, 'filetype') == 'dirvish' then
       return b
-    elseif normalize_dir(api.nvim_buf_get_name(b), true) == name then
+    elseif normalize_dir(api.nvim_buf_get_name(b), true) == normalize_dir(name, true) then
       return b
     end
   end
   return api.nvim_create_buf(false, true)
+end
+
+-- Change a buffers name and delete any newly created alternate buffers
+local function buf_set_name(buf, name)
+  api.nvim_buf_set_name(buf, name)
+
+  -- nvim_buf_set_name creates an alternate buffer with the name we are changing
+  -- from. Delete it.
+  api.nvim_buf_call(buf, function()
+    local alt = fn.bufnr('#')
+    if alt ~= buf and alt ~= -1 then
+      api.nvim_buf_delete(alt, {force=true})
+    end
+  end)
+end
+
+local ns = api.nvim_create_namespace('dirvish')
+
+local function highlight_open_paths(buf)
+  local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+
+  for _, b in ipairs(api.nvim_list_bufs()) do
+    local name = api.nvim_buf_get_name(b)
+
+    for i, l in ipairs(lines) do
+      if name == l then
+        api.nvim_buf_set_extmark(buf, ns, i-1, 0, {
+          hl_group = 'DirvishOpenBuf',
+          end_col = #l
+        })
+        break
+      end
+    end
+  end
+end
+
+local function buf_render(dir, from_path)
+  local buf = get_or_create_buf(dir)
+
+  api.nvim_buf_set_option(buf, 'filetype' , 'dirvish')
+  api.nvim_buf_set_option(buf, 'buftype'  , 'nofile')
+  api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
+  api.nvim_buf_set_option(buf, 'swapfile' , false)
+
+  buf_set_name(buf, dir)
+
+  local win = get_or_create_win(buf)
+
+  api.nvim_win_set_option(win, 'cursorline'   , true)
+  api.nvim_win_set_option(win, 'wrap'         , false)
+  api.nvim_win_set_option(win, 'concealcursor', 'nvc')
+  api.nvim_win_set_option(win, 'conceallevel' , 2)
+
+  api.nvim_buf_set_lines(buf, 0, -1, false, list_dir(dir))
+
+  if type(vim.g.dirvish_mode) == 'string' then -- Apply user's filter.
+    api.nvim_buf_call(buf, function()
+      vim.cmd(vim.g.dirvish_mode)
+    end)
+  end
+
+  highlight_open_paths(buf)
+
+  fn.search([[\V\^]]..from_path..'\\$', 'cw')
+
+  -- Place cursor on the tail (last path segment).
+  fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
 end
 
 function M.open(path, splitcmd)
@@ -125,8 +195,12 @@ function M.open(path, splitcmd)
   end
 
   if not path then
-    local line = api.nvim_win_get_cursor(0)[1]
-    path = getline(line-1)
+    if vim.bo.filetype == 'dirvish' then
+      local line = api.nvim_win_get_cursor(0)[1]
+      path = getline(line-1)
+    else
+      path = api.nvim_buf_get_name(0)
+    end
   end
 
   if splitcmd then
@@ -155,33 +229,7 @@ function M.open(path, splitcmd)
   end
 
   local from_path = fnamemodify(api.nvim_buf_get_name(0), ':p')
-
-  local buf = get_or_create_buf(dir)
-
-  api.nvim_buf_set_option(buf, 'filetype', 'dirvish')
-  api.nvim_buf_set_option(buf, 'buftype' , 'nofile')
-  api.nvim_buf_set_option(buf, 'swapfile', false)
-  api.nvim_buf_set_name(buf, dir)
-
-  local win = get_or_create_win(buf)
-
-  api.nvim_win_set_option(win, 'cursorline'   , true)
-  api.nvim_win_set_option(win, 'wrap'         , false)
-  api.nvim_win_set_option(win, 'concealcursor', 'nvc')
-  api.nvim_win_set_option(win, 'conceallevel' , 2)
-
-  api.nvim_buf_set_lines(buf, 0, -1, false, list_dir(dir))
-
-  if type(vim.g.dirvish_mode) == 'string' then -- Apply user's filter.
-    api.nvim_buf_call(buf, function()
-      vim.cmd(vim.g.dirvish_mode)
-    end)
-  end
-
-  fn.search([[\V\^]]..from_path..'\\$', 'cw')
-
-  -- Place cursor on the tail (last path segment).
-  fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
+  buf_render(dir, from_path)
 end
 
 function M.setup()
@@ -196,7 +244,7 @@ function M.setup()
   keymap('n', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info(false)<CR>]])
   keymap('x', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info(true)<CR>]])
 
-  api.nvim_set_keymap('n', '-', '<cmd>lua package.loaded.dirvish.open(\'.\')<CR>' , {silent=true})
+  api.nvim_set_keymap('n', '-', '<cmd>lua package.loaded.dirvish.open()<CR>' , {silent=true})
 
   vim.cmd[[
     highlight default link DirvishSuffix   SpecialKey

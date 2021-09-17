@@ -4,9 +4,13 @@ Changes:
 - Ported to Lua
 - Vim compat removed
 - Windows compat removed
-- Defaults to using Neovim floating windows
 - Icon handlers removed
 - Shdo removed
+- Arglist removed
+
+New features:
+- Highlight open buffers in directory listing
+- Use floating windows
 
 WIP
 

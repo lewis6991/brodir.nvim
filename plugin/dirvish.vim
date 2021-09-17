@@ -14,7 +14,7 @@ augroup dirvish
   autocmd VimEnter * silent! autocmd! FileExplorer *
 
   autocmd BufEnter *
-    \   if !exists('b:dirvish') && isdirectory(expand('%:p'))
+    \   if &l:ft != 'dirvish' && isdirectory(expand('%:p'))
     \ |   exe 'lua package.loaded.dirvish.open()'
     \ | endif
 
