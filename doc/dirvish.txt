@@ -65,21 +65,12 @@ Buffer-local (filetype=dirvish) ~
     p               Previews file at cursor.
     CTRL-N          Previews the next file.
     CTRL-P          Previews the previous file.
-    <Plug>(dirvish_arg)
-    x               Adds/removes file to/from the local |arglist|.
     {Visual}x       Adds selected files to the local arglist.
     dax             Starts a new empty local arglist.
     .               Inserts ":! {path}" into the command-line.
-    {Visual}.       Inserts "|:Shdo|  {}" into the command-line.
-    [count].        Inserts "|:Shdo|! {}" into the command-line.
     ~               Opens your home directory.
     cd              Sets the local |current-directory|. |:lcd|
     [count]cd       Sets the global |current-directory|. |:cd|
-
-Buffer-local (:Shdo) ~
-                                                    *Z!* *dirvish-Z!*
-    Z!              Saves and executes a |:Shdo| shell-script. Closes the
-                    window if the script succeeded.
 
 ==============================================================================
 COMMANDS                                                    *dirvish-commands*
@@ -92,42 +83,10 @@ COMMANDS                                                    *dirvish-commands*
     To open the directory of the current file: >
         :Dirvish %
 <
-:[range]Shdo[!] {cmd}                               *:Shdo* *dirvish-:Shdo*
-    Generates a shell script with {cmd} applied to [range] and the respective
-    filepath inserted wherever {} appears in {cmd}. The window-local directory
-    is initialized to the current Dirvish directory. If bang ! is given the
-    |arglist| is used instead of [range].
-
-    For example, to rename a list of visual-selected files: >
-        :'<,'>Shdo mv {} {}-copy.txt
-<    Run the script with |Z!| or ":!%".
-
 ==============================================================================
 FUNCTIONS                                                  *dirvish-functions*
 
-                                                              *dirvish#open()*
-[range]dirvish#open({cmd}, {bg})
-    Performs {cmd} ("edit", "vsplit", "split", "tabedit") on the files in
-    [range]. {bg} must be 0 (open files in current window) or 1 (open files in
-    the "background").
-
-                                                       *dirvish#add_icon_fn()*
-dirvish#add_icon_fn(fn)
-    Registers a function {fn} to decide the "icon" for each path in a Dirvish
-    buffer. Returns id for use with |dirvish#remove_icon_fn()|. If multiple
-    functions are registered: the first function to return non-whitespace for
-    a given path, wins. Best practice: if you don't have anything meaningful
-    to show for a given path, return empty string (or whitespace).
-
-    {fn} is any |Funcref| that takes a path (string) and returns a single
-    character (the "icon"). Example: >
-        call dirvish#add_icon_fn({p -> p[-1:]=='/'?'📂':'📄'})
-<
-
-                                                    *dirvish#remove_icon_fn()*
-dirvish#remove_icon_fn(fn_id)
-    Unregisters the function associated with {fn_id} returned from
-    |dirvish#add_icon_fn()|.
+TBD
 
 ==============================================================================
 OPTIONS                                                      *dirvish-options*
@@ -139,11 +98,6 @@ g:dirvish_mode = 1                                  *g:dirvish_mode*
     ":{cmd}": Ex-command |:execute|d after listing files.
 
     Mnemonic: higher number => more files.
-
-g:dirvish_relative_paths = 0                        *g:dirvish_relative_paths*
-    0:        List full (absolute) paths in the Dirvish buffer.
-    1:        List paths relative to the |current-directory|.
-              (Recommended for Vim 7.3 because it lacks |conceal|).
 
 |BufNew| fires the first time a directory is opened (and not yet loaded).
 Note: Use expand("<afile>") to get the new buffer name (not "%").
@@ -213,21 +167,6 @@ want Dirvish to "shadow" it, :unmap the Dirvish buffer-local mapping: >
 
 You could use ":mapclear <buffer>" to delete ALL of the mappings.
 
-Why does the "swap file" dialog appear if another Vim is viewing the same ~
-directory? ~
-To avoid this, |:noswapfile| is required (Vim 7.4.213).
-https://github.com/vim/vim/tree/v7.4.213
-
-How can I delete files, rename files, or perform other commands?~
-Since ":'<,'>call delete(getline('.'))" is a bit much to type, Dirvish
-provides the ":Shdo" command. |dirvish-:Shdo|
-
-Just for fun, here's the old-school way: >
-    qqq
-    :g/^/let @Q='echo '.shellescape(getline('.')).' '.shellescape(getline('.'))."\n"
-    :exe 'e' tempname().'.sh'
-    :put q|w|!%
-<
 Why does Dirvish report "invalid directory" for a path that contains unusual ~
 characters (e.g. brackets "[]")? ~
 Check your 'isfname' setting. On Windows (where filepaths may contain
@@ -241,19 +180,6 @@ Put this in your vimrc: >
     command! -nargs=? -complete=dir Explore Dirvish <args>
     command! -nargs=? -complete=dir Sexplore belowright split | silent Dirvish <args>
     command! -nargs=? -complete=dir Vexplore leftabove vsplit | silent Dirvish <args>
-
-How to expand a directory inline (like a tree-style view)? ~
-There is a hacky solution. Put this in your vimrc and hit "t" on a directory: >
-
-    augroup dirvish_config
-      autocmd!
-      autocmd FileType dirvish
-                  \ nnoremap <silent><buffer> t ddO<Esc>:let @"=substitute(@", '\n', '', 'g')<CR>:r ! find "<C-R>"" -maxdepth 1 -print0 \| xargs -0 ls -Fd<CR>:silent! keeppatterns %s/\/\//\//g<CR>:silent! keeppatterns %s/[^a-zA-Z0-9\/]$//g<CR>:silent! keeppatterns g/^$/d<CR>:noh<CR>
-    augroup END
-
-Note:
-- Expects unix-style filepaths.
-- Will overwrite your " register.
 
 ==============================================================================
  vim:tw=78:ts=4:et:ft=help:norl:
