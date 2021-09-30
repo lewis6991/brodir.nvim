@@ -8,9 +8,9 @@ let s:escape = 'substitute(escape(v:val, ".$~"), "*", ".*", "g")'
 
 " Define once (per buffer).
 if !exists('b:current_syntax')
-  syntax match DirvishPathHead =.*/\ze[^/]\+/\?$= conceal
-  syntax match DirvishPathTail =[^/]\+/$=
-  exe 'syntax match DirvishSuffix   =[^/]*\%('.join(map(split(&suffixes, ','), s:escape), '\|') . '\)$='
+  syntax match DirvishPathHead "/.*/\ze[^/]\+/\?$" conceal
+  syntax match DirvishPathTail "[^/]\+/$"
+  exe 'syntax match DirvishSuffix   "[^/]*\%('.join(map(split(&suffixes, ','), s:escape), '\|') . '\)$"'
 endif
 
 highlight default link DirvishSuffix   SpecialKey

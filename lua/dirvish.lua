@@ -150,6 +150,23 @@ local function buf_set_name(buf, name)
   end)
 end
 
+local function get_icon(line)
+  local ext = line:match('%.([a-zA-Z]+)$')
+  return require('nvim-web-devicons').get_icon(line, ext, {default=true})
+end
+
+local function add_icons(buf)
+  local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+
+  for i, l in ipairs(lines) do
+    local icon = get_icon(l)
+    api.nvim_buf_set_extmark(buf, ns, i-1, 0, {
+      virt_text = {{icon, 'NonText'}},
+      virt_text_pos = 'overlay'
+    })
+  end
+end
+
 local function highlight_open_paths(buf)
   local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
 
@@ -187,7 +204,14 @@ local function buf_render(dir, from_path)
   api.nvim_win_set_option(win, 'conceallevel' , 2)
 
   api.nvim_buf_set_option(buf, 'modifiable', true)
-  api.nvim_buf_set_lines(buf, 0, -1, false, list_dir(dir))
+
+  local lines = list_dir(dir)
+  for i = 1, #lines do
+    -- Insert padding to place an icon
+    lines[i] = '  '..lines[i]
+  end
+
+  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
   if type(vim.g.dirvish_mode) == 'string' then -- Apply user's filter.
     api.nvim_buf_call(buf, function()
@@ -198,11 +222,13 @@ local function buf_render(dir, from_path)
   api.nvim_buf_set_option(buf, 'modifiable' , false)
 
   highlight_open_paths(buf)
+  add_icons(buf)
 
-  fn.search([[\V\^]]..from_path..'\\$', 'cw')
+  fn.search([[\V\^\s\*]]..from_path..'\\$', 'cw')
 
-  -- Place cursor on the tail (last path segment).
-  fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
+  -- -- FIXME: this hides the icon in floating window
+  -- -- Place cursor on the tail (last path segment).
+  -- fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
 end
 
 function M.open(path, splitcmd)
@@ -214,7 +240,7 @@ function M.open(path, splitcmd)
   if not path then
     if vim.bo.filetype == 'dirvish' then
       local line = api.nvim_win_get_cursor(0)[1]
-      path = getline(line-1)
+      path = getline(line-1):match('^%s*(.*)')
     else
       path = api.nvim_buf_get_name(0)
     end
