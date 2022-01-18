@@ -16,11 +16,16 @@ local function isdirectory(d)
   return stat and stat.type == 'directory'
 end
 
+local function trim(s)
+   return s:gsub("^%s*(.-)%s*$", "%1")
+end
+
 function M.info()
   local dirsize = vim.v.count
   local paths = api.nvim_buf_get_lines(0, 0, -1, false)
 
   for i, f in ipairs(paths) do
+    f = trim(f)
     -- Slash decides how getftype() classifies directory symlinks. #138
     local noslash = fn.substitute(f, fn.escape('/','\\')..'$', '', 'g')
 
@@ -38,6 +43,7 @@ function M.info()
       local msg = format('%s %s %s %s ', ty, fn.getfperm(f), time, size)
         ..('link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.'))
       local id = api.nvim_buf_set_extmark(0, ns, i-1, 0, {
+        id = i,
         virt_text = {{ msg , 'Comment' }},
         virt_text_pos = 'right_align'
       })
@@ -140,14 +146,14 @@ end
 local function buf_set_name(buf, name)
   api.nvim_buf_set_name(buf, name)
 
-  -- nvim_buf_set_name creates an alternate buffer with the name we are changing
-  -- from. Delete it.
-  api.nvim_buf_call(buf, function()
-    local alt = fn.bufnr('#')
-    if alt ~= buf and alt ~= -1 then
-      api.nvim_buf_delete(alt, {force=true})
-    end
-  end)
+  -- -- nvim_buf_set_name creates an alternate buffer with the name we are changing
+  -- -- from. Delete it.
+  -- api.nvim_buf_call(buf, function()
+  --   local alt = fn.bufnr('#')
+  --   if alt ~= buf and alt ~= -1 then
+  --     pcall(api.nvim_buf_delete, alt, {force=true})
+  --   end
+  -- end)
 end
 
 local function get_icon(line)
