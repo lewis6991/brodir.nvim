@@ -22,5 +22,11 @@ augroup dirvish
       \   if exists('#fugitive')
       \ |   call FugitiveDetect(@%)
       \ | endif
+
+  " Reset horizontal scroll when moving cursor
+  " Need to do this as Conceal causes some weird scrolling behaviour on narrow
+  " windows.
+  autocmd FileType dirvish
+      \ autocmd WinScrolled <buffer> normal 99zH
 augroup END
 
