@@ -283,26 +283,7 @@ function M.open(path, splitcmd)
   buf_render(dir, from_path)
 end
 
-function M.setup()
-  local function keymap(mode, l, r)
-    api.nvim_set_keymap(mode, l, r, {noremap=true, silent=true})
-  end
-
-  keymap('n', '<Plug>(dirvish_up)'       , [[<cmd>exe 'Dirvish %:p'.repeat(':h',v:count1)<CR>]])
-  keymap('n', '<Plug>(dirvish_split_up)' , [[<cmd>exe 'split +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
-  keymap('n', '<Plug>(dirvish_vsplit_up)', [[<cmd>exe 'vsplit +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
-  keymap('n', '<Plug>(dirvish_quit)'     , [[<cmd>bdelete!<CR>]])
-  keymap('n', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info()<CR>]])
-  keymap('x', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info()<CR>]])
-
-  api.nvim_set_keymap('n', '-', '<cmd>lua package.loaded.dirvish.open()<CR>' , {silent=true})
-
-  vim.cmd[[
-    highlight default link DirvishSuffix   SpecialKey
-    highlight default link DirvishPathTail Directory
-    highlight default link DirvishArg      Todo
-  ]]
-
+local function setup_autocmds()
   local group = api.nvim_create_augroup('dirvish', {})
 
   -- Remove netrw directory handlers.
@@ -334,10 +315,37 @@ function M.setup()
       -- Reset horizontal scroll when moving cursor
       -- Need to do this as Conceal causes some weird scrolling behaviour on narrow
       -- windows.
-      vim.cmd'autocmd WinScrolled <buffer> normal 99zH'
+      api.nvim_create_autocmd('WinScrolled', {
+        buffer = api.nvim_get_current_buf(),
+        command = 'normal 99zH'
+      })
     end
   })
+end
 
+function M.setup()
+  local function keymap(mode, l, r)
+    api.nvim_set_keymap(mode, l, r, {noremap=true, silent=true})
+  end
+
+  keymap('n', '<Plug>(dirvish_up)'       , [[<cmd>exe 'Dirvish %:p'.repeat(':h',v:count1)<CR>]])
+  keymap('n', '<Plug>(dirvish_split_up)' , [[<cmd>exe 'split +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
+  keymap('n', '<Plug>(dirvish_vsplit_up)', [[<cmd>exe 'vsplit +Dirvish\ %:p'.repeat(':h',v:count1)<CR>]])
+  keymap('n', '<Plug>(dirvish_quit)'     , [[<cmd>bdelete!<CR>]])
+  keymap('n', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info()<CR>]])
+  keymap('x', '<Plug>(dirvish_K)'        , [[<cmd>lua package.loaded.dirvish.info()<CR>]])
+
+  api.nvim_set_keymap('n', '-', '<cmd>lua package.loaded.dirvish.open()<CR>' , {silent=true})
+
+  local function hl_link(hl, link)
+    api.nvim_set_hl(0, hl, { link = link })
+  end
+
+  hl_link('DirvishSuffix'  , 'SpecialKey')
+  hl_link('DirvishPathTail', 'Directory' )
+  hl_link('DirvishArg'     , 'Todo'      )
+
+  setup_autocmds()
 end
 
 M.setup()
