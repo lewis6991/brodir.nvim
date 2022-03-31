@@ -303,6 +303,41 @@ function M.setup()
     highlight default link DirvishArg      Todo
   ]]
 
+  local group = api.nvim_create_augroup('dirvish', {})
+
+  -- Remove netrw directory handlers.
+  api.nvim_create_autocmd('VimEnter', {
+    group = group,
+    callback = function()
+      api.nvim_create_augroup('FileExplorer', {}) -- clear the group
+      api.nvim_del_augroup_by_name('FileExplorer')
+    end
+  })
+
+  api.nvim_create_autocmd('BufEnter', {
+    group = group,
+    callback = function()
+      if vim.bo.filetype ~= 'dirvish' and vim.fn.isdirectory(vim.fn.expand('%:p')) == 1 then
+        M.open()
+      end
+    end
+  })
+
+  api.nvim_create_autocmd('FileType', {
+    pattern = 'dirvish',
+    group = group,
+    callback = function()
+      if vim.fn.exists('#fugitive') == 1 then
+        vim.cmd'call FugitiveDetect(@%)'
+      end
+
+      -- Reset horizontal scroll when moving cursor
+      -- Need to do this as Conceal causes some weird scrolling behaviour on narrow
+      -- windows.
+      vim.cmd'autocmd WinScrolled <buffer> normal 99zH'
+    end
+  })
+
 end
 
 M.setup()
