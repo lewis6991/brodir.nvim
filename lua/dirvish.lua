@@ -1,5 +1,7 @@
 local fn, api = vim.fn, vim.api
 
+local util = require('dirvish.util')
+
 local ns = api.nvim_create_namespace('dirvish')
 
 local fnamemodify = fn.fnamemodify
@@ -13,21 +15,12 @@ local function getlines(buf)
   return api.nvim_buf_get_lines(buf or 0, 0, -1, false)
 end
 
-local function isdirectory(d)
-  local stat = vim.loop.fs_stat(d)
-  return stat and stat.type == 'directory'
-end
-
-local function trim(s)
-  return s:gsub("^%s*(.-)%s*$", "%1")
-end
-
 local function info()
   local dirsize = vim.v.count
   local paths = getlines()
 
   for i, f in ipairs(paths) do
-    f = trim(f)
+    f = util.trim(f)
     -- Slash decides how getftype() classifies directory symlinks. #138
     local noslash = fn.substitute(f, fn.escape('/','\\')..'$', '', 'g')
 
@@ -62,7 +55,7 @@ local function msg_error(msg)
 end
 
 local function normalize_dir(dir, silent)
-  if not isdirectory(dir) then
+  if not util.isdirectory(dir) then
     -- Fallback for cygwin/MSYS paths lacking a drive letter.
     if not silent then
       msg_error("invalid directory: '"..dir.."'")
@@ -139,34 +132,11 @@ local function get_buf(dir)
   return dbuf
 end
 
-local function add_icons(buf, lines)
-  for i, l in ipairs(lines) do
-    local icon, icon_hl = require('nvim-web-devicons').get_icon(l, nil, {default=true})
-    api.nvim_buf_set_extmark(buf, ns, i-1, 0, {
-      sign_text = icon,
-      sign_hl_group = icon_hl
-    })
-  end
-end
-
-local function highlight_open_paths(buf, lines)
-  local bufs = {}
-  for _, b in ipairs(api.nvim_list_bufs()) do
-    local name = api.nvim_buf_get_name(b)
-    bufs[name] = b
-  end
-
-  for i, l in ipairs(lines) do
-    if bufs[l] then
-      api.nvim_buf_set_extmark(buf, ns, i-1, 0, {
-        hl_group = 'DirvishOpenBuf',
-        -- Add the buffer number next
-        virt_text = {{tostring(bufs[l]), 'NonText'}},
-        end_col = #l
-      })
-    end
-  end
-end
+local handlers = {
+  'dirvish.handlers.git',
+  'dirvish.handlers.open',
+  'dirvish.handlers.icons'
+}
 
 local function buf_render(buf, dir, from_path)
   api.nvim_buf_set_name(buf, dir)
@@ -205,8 +175,9 @@ local function buf_render(buf, dir, from_path)
 
   vim.bo[buf].modifiable = false
 
-  highlight_open_paths(buf, lines)
-  add_icons(buf, lines)
+  for _, handler in ipairs(handlers) do
+    require(handler)(buf, dir, lines)
+  end
 
   fn.search([[\V\^\s\*]]..from_path..'\\$', 'cw')
 
@@ -246,7 +217,7 @@ function M.open(path, splitcmd)
       return
     end
 
-    if not isdirectory(path) then -- sanity check
+    if not util.isdirectory(path) then -- sanity check
       msg_error("invalid (access denied?): "..path)
     end
   end
@@ -257,7 +228,7 @@ function M.open(path, splitcmd)
   local dir = fn.filereadable(to_path) == 1 and fnamemodify(to_path, ':p:h') or to_path
   dir = normalize_dir(dir, is_uri)
 
-  if not isdirectory(dir) then
+  if not util.isdirectory(dir) then
     api.nvim_err_writeln('dirvish: fatal: buffer name is not a directory: '..dir)
     error('DEBUG')
     return
@@ -285,7 +256,7 @@ local function setup_autocmds()
   api.nvim_create_autocmd('BufEnter', {
     group = group,
     callback = function()
-      if vim.bo.filetype ~= 'dirvish' and vim.fn.isdirectory(vim.fn.expand('%:p')) == 1 then
+      if vim.bo.filetype ~= 'dirvish' and vim.fn.isdirectory(fn.expand('%:p')) == 1 then
         M.open()
       end
     end
