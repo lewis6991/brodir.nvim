@@ -13,8 +13,4 @@ if !exists('b:current_syntax')
   exe 'syntax match BrodirSuffix   "[^/]*\%('.join(map(split(&suffixes, ','), s:escape), '\|') . '\)$"'
 endif
 
-highlight default link BrodirSuffix   SpecialKey
-highlight default link BrodirPathTail Directory
-highlight default link BrodirOpenBuf  Todo
-
 let b:current_syntax = 'brodir'

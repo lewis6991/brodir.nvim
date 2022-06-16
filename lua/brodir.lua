@@ -1,4 +1,4 @@
-local fn, api = vim.fn, vim.api
+local fn, api, luv = vim.fn, vim.api, vim.loop
 
 local util = require('brodir.util')
 
@@ -6,6 +6,8 @@ local ns = api.nvim_create_namespace('brodir')
 
 local fnamemodify = fn.fnamemodify
 local format = string.format
+
+local buf_name = api.nvim_buf_get_name
 
 local function getline(n)
   return api.nvim_buf_get_lines(0, n, n+1, false)[1]
@@ -34,7 +36,7 @@ local function info()
     if size == -1 then
       print('?')
     else
-      local stat = vim.loop.fs_stat(f)
+      local stat = luv.fs_stat(f)
       local ty = stat.type:sub(1, 1)
       local time = fn.strftime('%Y-%m-%d %H:%M', stat.mtime.sec)
       local msg = format('%s %s %s %6s ', ty, fn.getfperm(f), time, size)
@@ -79,13 +81,12 @@ end
 
 local function list_dir(dir)
   local paths = {}
-  for p in vim.fs.dir(dir) do
-    paths[#paths+1] = dir..p
+  for p, ty in vim.fs.dir(dir) do
+    local trailslash = ty == 'directory' and '/' or ''
+    paths[#paths+1] = dir..p..trailslash
   end
 
-  return vim.tbl_map(function(v)
-    return fnamemodify(v, ':p')
-  end, paths)
+  return paths
 end
 
 local function get_or_create_win(buf)
@@ -97,7 +98,7 @@ local function get_or_create_win(buf)
 
   local win
 
-  if api.nvim_buf_get_name(0) == '' then
+  if buf_name(0) == '' then
     win = api.nvim_get_current_win()
     api.nvim_win_set_buf(win, buf)
   else
@@ -120,7 +121,7 @@ local function get_or_create_win(buf)
   end
 
   -- Set the alternate buffer to itself
-  vim.fn.setreg('#', buf)
+  fn.setreg('#', buf)
 
   return win
 end
@@ -130,7 +131,7 @@ local dbuf = api.nvim_create_buf(false, true)
 
 local function get_buf(dir)
   for _, b in ipairs(api.nvim_list_bufs()) do
-    if vim.bo[b].filetype == 'brodir' or normalize_dir(api.nvim_buf_get_name(b), true) == dir then
+    if vim.bo[b].filetype == 'brodir' or normalize_dir(buf_name(b), true) == dir then
       -- Buf with dir already open
       return b
     end
@@ -149,12 +150,12 @@ local function buf_render(buf, dir, from_path)
 
   -- nvim_buf_set_name creates an alternate buffer with the name we are changing
   -- from. Delete it.
-  api.nvim_buf_call(buf, function()
-    local alt = fn.bufnr('#')
-    if alt ~= buf and alt ~= -1 then
-      pcall(api.nvim_buf_delete, alt, {force=true})
-    end
+  local alt = api.nvim_buf_call(buf, function()
+    return fn.bufnr('#')
   end)
+  if alt ~= buf and alt ~= -1 then
+    pcall(api.nvim_buf_delete, alt, {force=true})
+  end
 
   vim.bo[buf].filetype = 'brodir'
   vim.bo[buf].buftype  = 'nofile'
@@ -194,8 +195,16 @@ end
 local M = {}
 
 function M.open_up(splitcmd)
-  local path = api.nvim_buf_get_name(0)
-  M.open(vim.fn.fnamemodify(path, ':h'), splitcmd)
+  local path = vim.fs.dirname(buf_name(0))
+  M.open(path, splitcmd)
+end
+
+local function get_path()
+  if vim.bo.filetype == 'brodir' then
+    local line = api.nvim_win_get_cursor(0)[1]
+    return getline(line-1)
+  end
+  return buf_name(0)
 end
 
 function M.open(path, splitcmd)
@@ -204,14 +213,7 @@ function M.open(path, splitcmd)
     return
   end
 
-  if not path then
-    if vim.bo.filetype == 'brodir' then
-      local line = api.nvim_win_get_cursor(0)[1]
-      path = getline(line-1):match('^%s*(.*)')
-    else
-      path = api.nvim_buf_get_name(0)
-    end
-  end
+  path = path or get_path()
 
   if splitcmd then
     if fn.filereadable(path) == 1 then
@@ -230,8 +232,8 @@ function M.open(path, splitcmd)
 
   local is_uri = fn.match(path, '^\\w\\+:[\\/][\\/]') ~= -1
 
-  local to_path = fnamemodify(path, ':p') -- resolves to CWD if a:1 is empty
-  local dir = fn.filereadable(to_path) == 1 and fnamemodify(to_path, ':p:h') or to_path
+  local to_path = fnamemodify(path, ':p')
+  local dir = luv.fs_stat(to_path) and fnamemodify(to_path, ':p:h') or to_path
   dir = normalize_dir(dir, is_uri)
 
   if not util.isdirectory(dir) then
@@ -243,7 +245,7 @@ function M.open(path, splitcmd)
     return
   end
 
-  local from_path = fnamemodify(api.nvim_buf_get_name(0), ':p')
+  local from_path = fnamemodify(buf_name(0), ':p')
   buf_render(get_buf(dir), dir, from_path)
 end
 
@@ -262,27 +264,10 @@ local function setup_autocmds()
   api.nvim_create_autocmd('BufEnter', {
     group = group,
     callback = function()
-      if vim.bo.filetype ~= 'brodir' and vim.fn.isdirectory(fn.expand('%:p')) == 1 then
+      local path = luv.fs_realpath(buf_name(0)) or ''
+      if vim.bo.filetype ~= 'brodir' and util.isdirectory(path) then
         M.open()
       end
-    end
-  })
-
-  api.nvim_create_autocmd('FileType', {
-    pattern = 'brodir',
-    group = group,
-    callback = function()
-      if vim.fn.exists('#fugitive') == 1 then
-        vim.cmd'call FugitiveDetect(@%)'
-      end
-
-      -- Reset horizontal scroll when moving cursor
-      -- Need to do this as Conceal causes some weird scrolling behaviour on narrow
-      -- windows.
-      api.nvim_create_autocmd('WinScrolled', {
-        buffer = api.nvim_get_current_buf(),
-        command = 'normal 99zH'
-      })
     end
   })
 end
@@ -302,7 +287,7 @@ function M.setup()
   keymap({'n', 'x'}, '<Plug>(brodir_K)', info)
 
   local function hl_link(hl, link)
-    api.nvim_set_hl(0, hl, { link = link })
+    api.nvim_set_hl(0, hl, { link = link, default = true })
   end
 
   hl_link('BrodirSuffix'  , 'SpecialKey')
