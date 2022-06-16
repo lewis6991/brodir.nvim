@@ -24,18 +24,20 @@ local function info()
     -- Slash decides how getftype() classifies directory symlinks. #138
     local noslash = fn.substitute(f, fn.escape('/','\\')..'$', '', 'g')
 
-    local size
-    if fn.getfsize(f) ~= -1 and dirsize == 1 then
-      size = fn.matchstr(fn.system('du -hs '..fn.shellescape(f)), '\\S\\+')
-    else
-      size = format('%.2f', fn.getfsize(f)/1000)..'K'
+    local size = fn.getfsize(f)
+    if size > 0 then
+      size = format('%.2f', size/1000)..'K'
+    elseif size == 0 and dirsize <= 1 then
+      size = fn.matchstr(fn.system{'du', '-hs', f}, '\\S\\+')
     end
-    if fn.getfsize(f) == -1 then
+
+    if size == -1 then
       print('?')
     else
-      local ty = fn.getftype(noslash):sub(1, 1)
-      local time = fn.strftime('%Y-%m-%d.%H:%M:%S', fn.getftime(f))
-      local msg = format('%s %s %s %s ', ty, fn.getfperm(f), time, size)
+      local stat = vim.loop.fs_stat(f)
+      local ty = stat.type:sub(1, 1)
+      local time = fn.strftime('%Y-%m-%d %H:%M', stat.mtime.sec)
+      local msg = format('%s %s %s %6s ', ty, fn.getfperm(f), time, size)
         ..('link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.'))
       local id = api.nvim_buf_set_extmark(0, ns, i-1, 0, {
         id = i,
@@ -43,9 +45,13 @@ local function info()
         virt_text_pos = 'right_align'
       })
 
-      vim.cmd(format(
-        [[autocmd CursorMoved <buffer> ++once lua vim.api.nvim_buf_del_extmark(%d, %d, %d)]], 0, ns, id
-      ))
+      api.nvim_create_autocmd('CursorMoved', {
+        buffer = 0,
+        once = true,
+        callback = function()
+          api.nvim_buf_del_extmark(0, ns, id)
+        end
+      })
     end
   end
 end
