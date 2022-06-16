@@ -1,8 +1,8 @@
 local fn, api = vim.fn, vim.api
 
-local util = require('dirvish.util')
+local util = require('brodir.util')
 
-local ns = api.nvim_create_namespace('dirvish')
+local ns = api.nvim_create_namespace('brodir')
 
 local fnamemodify = fn.fnamemodify
 local format = string.format
@@ -51,7 +51,7 @@ local function info()
 end
 
 local function msg_error(msg)
-  vim.notify(msg, vim.log.levels.WARN, {title = 'dirvish'})
+  vim.notify(msg, vim.log.levels.WARN, {title = 'brodir'})
 end
 
 local function normalize_dir(dir, silent)
@@ -124,7 +124,7 @@ local dbuf = api.nvim_create_buf(false, true)
 
 local function get_buf(dir)
   for _, b in ipairs(api.nvim_list_bufs()) do
-    if vim.bo[b].filetype == 'dirvish' or normalize_dir(api.nvim_buf_get_name(b), true) == dir then
+    if vim.bo[b].filetype == 'brodir' or normalize_dir(api.nvim_buf_get_name(b), true) == dir then
       -- Buf with dir already open
       return b
     end
@@ -133,9 +133,9 @@ local function get_buf(dir)
 end
 
 local handlers = {
-  'dirvish.handlers.git',
-  'dirvish.handlers.open',
-  'dirvish.handlers.icons'
+  'brodir.handlers.git',
+  'brodir.handlers.open',
+  'brodir.handlers.icons'
 }
 
 local function buf_render(buf, dir, from_path)
@@ -150,7 +150,7 @@ local function buf_render(buf, dir, from_path)
     end
   end)
 
-  vim.bo[buf].filetype = 'dirvish'
+  vim.bo[buf].filetype = 'brodir'
   vim.bo[buf].buftype  = 'nofile'
   vim.bo[buf].swapfile = false
 
@@ -199,7 +199,7 @@ function M.open(path, splitcmd)
   end
 
   if not path then
-    if vim.bo.filetype == 'dirvish' then
+    if vim.bo.filetype == 'brodir' then
       local line = api.nvim_win_get_cursor(0)[1]
       path = getline(line-1):match('^%s*(.*)')
     else
@@ -209,8 +209,8 @@ function M.open(path, splitcmd)
 
   if splitcmd then
     if fn.filereadable(path) == 1 then
-      if vim.bo.filetype == 'dirvish' and fn.win_gettype() == 'popup' then
-        -- close the dirvish float
+      if vim.bo.filetype == 'brodir' and fn.win_gettype() == 'popup' then
+        -- close the brodir float
         api.nvim_win_close(0, false)
       end
       vim.cmd('keepalt '..splitcmd..' '..fn.fnameescape(path))
@@ -229,7 +229,7 @@ function M.open(path, splitcmd)
   dir = normalize_dir(dir, is_uri)
 
   if not util.isdirectory(dir) then
-    api.nvim_err_writeln('dirvish: fatal: buffer name is not a directory: '..dir)
+    api.nvim_err_writeln('brodir: fatal: buffer name is not a directory: '..dir)
     error('DEBUG')
     return
   elseif dir == '' then  -- normalize_dir() already showed error.
@@ -242,7 +242,7 @@ function M.open(path, splitcmd)
 end
 
 local function setup_autocmds()
-  local group = api.nvim_create_augroup('dirvish', {})
+  local group = api.nvim_create_augroup('brodir', {})
 
   -- Remove netrw directory handlers.
   api.nvim_create_autocmd('VimEnter', {
@@ -256,14 +256,14 @@ local function setup_autocmds()
   api.nvim_create_autocmd('BufEnter', {
     group = group,
     callback = function()
-      if vim.bo.filetype ~= 'dirvish' and vim.fn.isdirectory(fn.expand('%:p')) == 1 then
+      if vim.bo.filetype ~= 'brodir' and vim.fn.isdirectory(fn.expand('%:p')) == 1 then
         M.open()
       end
     end
   })
 
   api.nvim_create_autocmd('FileType', {
-    pattern = 'dirvish',
+    pattern = 'brodir',
     group = group,
     callback = function()
       if vim.fn.exists('#fugitive') == 1 then
@@ -291,17 +291,17 @@ function M.setup()
   end
 
   keymap('n', '-', M.open)
-  keymap('n', '<Plug>(dirvish_up)'  , M.open_up)
-  keymap('n', '<Plug>(dirvish_quit)', [[<cmd>bdelete!<CR>]])
-  keymap({'n', 'x'}, '<Plug>(dirvish_K)', info)
+  keymap('n', '<Plug>(brodir_up)'  , M.open_up)
+  keymap('n', '<Plug>(brodir_quit)', [[<cmd>bdelete!<CR>]])
+  keymap({'n', 'x'}, '<Plug>(brodir_K)', info)
 
   local function hl_link(hl, link)
     api.nvim_set_hl(0, hl, { link = link })
   end
 
-  hl_link('DirvishSuffix'  , 'SpecialKey')
-  hl_link('DirvishPathTail', 'Directory' )
-  hl_link('DirvishArg'     , 'Todo'      )
+  hl_link('BrodirSuffix'  , 'SpecialKey')
+  hl_link('BrodirPathTail', 'Directory' )
+  hl_link('BrodirArg'     , 'Todo'      )
 
   setup_autocmds()
 end

@@ -1,6 +1,6 @@
 local api = vim.api
 
-local ns = api.nvim_create_namespace('dirvish.handlers.open')
+local ns = api.nvim_create_namespace('brodir.handlers.open')
 
 return function(buf, _, lines)
   local bufs = {}
@@ -12,7 +12,7 @@ return function(buf, _, lines)
   for i, l in ipairs(lines) do
     if bufs[l] then
       api.nvim_buf_set_extmark(buf, ns, i-1, 0, {
-        hl_group = 'DirvishOpenBuf',
+        hl_group = 'BrodirOpenBuf',
         -- Add the buffer number next
         virt_text = {{tostring(bufs[l]), 'NonText'}},
         end_col = #l

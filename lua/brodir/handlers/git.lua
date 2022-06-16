@@ -1,8 +1,8 @@
 local fn, api = vim.fn, vim.api
 
-local util = require('dirvish.util')
+local util = require('brodir.util')
 
-local ns = api.nvim_create_namespace('dirvish.handlers.git')
+local ns = api.nvim_create_namespace('brodir.handlers.git')
 
 local function git_status(dir)
   local toplevel = fn.systemlist{'git', '-C', dir, 'rev-parse', '--show-toplevel'}[1]

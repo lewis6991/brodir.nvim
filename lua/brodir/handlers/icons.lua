@@ -1,6 +1,6 @@
 local api = vim.api
 
-local ns = api.nvim_create_namespace('dirvish.handlers.icons')
+local ns = api.nvim_create_namespace('brodir.handlers.icons')
 
 local get_icon = require('nvim-web-devicons').get_icon
 

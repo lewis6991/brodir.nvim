@@ -1,0 +1,93 @@
+*brodir.txt*	directory viewer
+
+==============================================================================
+OVERVIEW                                                             *brodir*
+
+Brodir is a minimalist directory viewer. It basically dumps a list of paths
+into a Neovim buffer and provides some sugar to work with those paths. It
+works with built-in Neovim mechanisms instead of inventing peripheral
+imitations.
+
+Because each Brodir buffer-name is the literal directory path, you can |:cd|
+to the directory, >
+  :cd %
+create a new file, >
+  :edit %/foo.txt
+|expand()| the directory path, >
+  :let &titlestring = expand('%', 1)
+and use complementary plugin commands like |]f|/|[f| (unimpaired.vim).
+
+Because each Brodir buffer is just a list of paths, you can use normal Neovim
+commands to |y|ank, |:read|, |gf|, etc. The built-in CTRL-W mappings also work
+as expected.
+
+It's totally fine to slice, dice, and smash any Brodir buffer: it will never
+modify the filesystem. If you edit the buffer, Brodir automatically disables
+|conceal| so you can see the full text.
+
+Brodir is designed to work with built-in Neovim concepts where possible. Tim
+Pope's plugins demonstrate this theme; more plugins should too. Re-use of
+concepts multiplies the utility of those concepts; conversely if a plugin does
+not reuse a concept, both that concept and the new one are made mutually less
+valuable--the sum is less than the parts--because the user must learn or
+choose from two slightly different things instead of one augmented system.
+
+==============================================================================
+MAPPINGS                                                    *brodir-mappings*
+
+Global ~
+    <Plug>(brodir_up)
+    -               Opens the current file directory or the [count]th parent.
+
+Buffer-local (filetype=brodir) ~
+    g?              Shows this help.
+    <Plug>(brodir_quit)
+    gq              Quits and returns to the original file.
+    <Plug>(brodir_up)
+    -               Opens the [count]th parent directory.
+    <Plug>(brodir_split_up)
+                    Opens the [count]th parent in a new window.
+    <Plug>(brodir_vsplit_up)
+                    Opens the [count]th parent in a new, vertical window.
+    <2-LeftMouse>
+    i
+    <CR>            Opens file at cursor.
+    {Visual}I
+    {Visual}<CR>    Opens selected files.
+    o               Opens file in a new window.
+    {Visual}O       Opens each selected file in a new window.
+    a               Opens file in a new, vertical window.
+    {Visual}A       Opens each selected file in a new, vertical window.
+    K               Shows file info. [count] shows directory size.
+    {Visual}K       Shows info for selected files. [count] shows directory size.
+    p               Previews file at cursor.
+    CTRL-N          Previews the next file.
+    CTRL-P          Previews the previous file.
+    {Visual}x       Adds selected files to the local arglist.
+    ~               Opens your home directory.
+    cd              Sets the local |current-directory|. |:lcd|
+    [count]cd       Sets the global |current-directory|. |:cd|
+
+==============================================================================
+COMMANDS                                                    *brodir-commands*
+
+:Brodir                                                    *brodir-:Brodir*
+    Opens the |current-directory|.
+
+:Brodir {path}
+    Opens the directory at {path}, or its parent if {path} is a file.
+    To open the directory of the current file: >
+        :Brodir %
+<
+==============================================================================
+FUNCTIONS                                                  *brodir-functions*
+
+TBD
+
+==============================================================================
+OPTIONS                                                      *brodir-options*
+
+TBD
+
+==============================================================================
+ vim:tw=78:ts=4:et:ft=help:norl:

@@ -19,28 +19,28 @@ local function map(mode)
   end
 end
 
-if vim.fn.hasmapto('<Plug>(dirvish_quit)', 'n') == 0 then
-  map 'n' '<ESC>' {'<Plug>(dirvish_quit)', nowait=true, silent=true}
-  map 'n' 'q'     {'<Plug>(dirvish_quit)', nowait=true, silent=true}
+if vim.fn.hasmapto('<Plug>(brodir_quit)', 'n') == 0 then
+  map 'n' '<ESC>' {'<Plug>(brodir_quit)', nowait=true, silent=true}
+  map 'n' 'q'     {'<Plug>(brodir_quit)', nowait=true, silent=true}
 end
 
-if vim.fn.hasmapto('<Plug>(dirvish_K)', 'n') == 0 then
-  map {'n', 'x'} 'K' {'<Plug>(dirvish_K)', nowait=true}
+if vim.fn.hasmapto('<Plug>(brodir_K)', 'n') == 0 then
+  map {'n', 'x'} 'K' {'<Plug>(brodir_K)', nowait=true}
 end
 
-if vim.fn.hasmapto('<Plug>(dirvish_up)', 'n') == 0 then
-  map 'n' '-' {'<Plug>(dirvish_up)', nowait=true}
+if vim.fn.hasmapto('<Plug>(brodir_up)', 'n') == 0 then
+  map 'n' '-' {'<Plug>(brodir_up)', nowait=true}
 end
 
-map 'n' '~' {':<C-U>Dirvish ~/<CR>', nowait=true, silent=true}
+map 'n' '~' {':<C-U>Brodir ~/<CR>', nowait=true, silent=true}
 
-map 'n' 'g?' {':help dirvish-mappings<CR>', silent=true}
+map 'n' 'g?' {':help brodir-mappings<CR>', silent=true}
 
 -- Buffer-local / and ? mappings to skip the concealed path fragment.
 map 'n' '/' {'/\\ze[^/]*[/]\\=$<Home>'}
 map 'n' '?' {'?\\ze[^/]*[/]\\=$<Home>'}
 
-local module = require('dirvish')
+local module = require('brodir')
 
 map 'n' '<CR>'  {function() module.open(nil, 'edit'   ) end, silent=true}
 map 'n' 'v'     {function() module.open(nil, 'vsplit' ) end, silent=true}
