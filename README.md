@@ -7,6 +7,24 @@ Path navigator designed to work with Vim's built-in mechanisms and
 
 ![image](https://user-images.githubusercontent.com/7904185/174033682-84ec8f72-76f8-4c49-b307-3e781755837d.png)
 
+Premise
+-------
+
+I've been using [vim-dirvish](https://github.com/justinmk/vim-dirvish)
+for many years now and have been slowly customising it as Neovim has
+evolved and gained new features: floating windows, advanced decorations, etc.
+
+It is now customised so much that it is no longer the same plugin and the
+feature set is quite different.
+The main difference being that it has been completely ported to Lua and relies
+on heavy use of the Neovim API with minimal use of `vim.cmd`.
+Any feature that heavily relied on Ex commands has been removed, which is
+mostly Shdo and Arglist related features.
+
+**Note**: I use this plugin personally and don't currently aim to support it
+for wider public use.
+Issues probably won't be actioned but PR's are always welcome.
+
 
 Features
 --------
