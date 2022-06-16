@@ -5,6 +5,9 @@ Path navigator designed to work with Vim's built-in mechanisms and
 [complementary](https://github.com/tpope/vim-eunuch)
 [plugins](https://github.com/tpope/vim-unimpaired).
 
+![image](https://user-images.githubusercontent.com/7904185/174033682-84ec8f72-76f8-4c49-b307-3e781755837d.png)
+
+
 Features
 --------
 
