@@ -5,4 +5,4 @@ let g:loaded_brodir = 1
 
 lua require("brodir")
 
-command! -bar -nargs=? -complete=dir Dirvish lua package.loaded.brodir.open(<f-args>)
+command! -bar -nargs=? -complete=dir Brodir lua package.loaded.brodir.open(<f-args>)
