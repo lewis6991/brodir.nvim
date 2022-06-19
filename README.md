@@ -19,7 +19,7 @@ feature set is quite different.
 The main difference being that it has been completely ported to Lua and relies
 on heavy use of the Neovim API with minimal use of `vim.cmd`.
 Any feature that heavily relied on Ex commands has been removed, which is
-mostly Shdo and Arglist related features.
+mostly Sudo and Arglist related features.
 
 **Note**: I use this plugin personally and don't currently aim to support it
 for wider public use.
