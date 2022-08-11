@@ -9,10 +9,6 @@ local format = string.format
 
 local buf_name = api.nvim_buf_get_name
 
-local function getline(n)
-  return api.nvim_buf_get_lines(0, n, n+1, false)[1]
-end
-
 local function getlines(buf)
   return api.nvim_buf_get_lines(buf or 0, 0, -1, false)
 end
@@ -22,39 +18,46 @@ local function info()
   local paths = getlines()
 
   for i, f in ipairs(paths) do
-    f = util.trim(f)
+    f = vim.trim(f)
     -- Slash decides how getftype() classifies directory symlinks. #138
     local noslash = fn.substitute(f, fn.escape('/','\\')..'$', '', 'g')
 
-    local size = fn.getfsize(f)
-    if size > 0 then
-      size = format('%.2f', size/1000)..'K'
-    elseif size == 0 and dirsize <= 1 then
-      size = fn.matchstr(fn.system{'du', '-hs', f}, '\\S\\+')
-    end
+    local stat = luv.fs_stat(f)
 
-    if size == -1 then
-      print('?')
+    local msg
+    if not stat then
+      local link = luv.fs_readlink(f)
+      if link then
+        msg = 'broken link -> '..link
+      else
+        msg = '?'
+      end
     else
-      local stat = luv.fs_stat(f)
+      local size = stat.size
+      if size > 0 then
+        size = format('%.2f', size/1000)..'K'
+      elseif size == 0 and dirsize <= 1 then
+        size = fn.matchstr(fn.system{'du', '-hs', f}, '\\S\\+')
+      end
       local ty = stat.type:sub(1, 1)
       local time = fn.strftime('%Y-%m-%d %H:%M', stat.mtime.sec)
-      local msg = format('%s %s %s %6s ', ty, fn.getfperm(f), time, size)
-        ..('link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.'))
-      local id = api.nvim_buf_set_extmark(0, ns, i-1, 0, {
-        id = i,
-        virt_text = {{ msg , 'Comment' }},
-        virt_text_pos = 'right_align'
-      })
-
-      api.nvim_create_autocmd('CursorMoved', {
-        buffer = 0,
-        once = true,
-        callback = function()
-          api.nvim_buf_del_extmark(0, ns, id)
-        end
-      })
+      local link = 'link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.')
+      msg = format('%s %s %s %6s %s', ty, fn.getfperm(f), time, size, link)
     end
+
+    local id = api.nvim_buf_set_extmark(0, ns, i-1, 0, {
+      id = i,
+      virt_text = {{ msg , 'Comment' }},
+      virt_text_pos = 'right_align'
+    })
+
+    api.nvim_create_autocmd('CursorMoved', {
+      buffer = 0,
+      once = true,
+      callback = function()
+        api.nvim_buf_del_extmark(0, ns, id)
+      end
+    })
   end
 end
 
@@ -64,7 +67,6 @@ end
 
 local function normalize_dir(dir, silent)
   if not util.isdirectory(dir) then
-    -- Fallback for cygwin/MSYS paths lacking a drive letter.
     if not silent then
       msg_error("invalid directory: '"..dir.."'")
     end
@@ -202,7 +204,7 @@ end
 local function get_path()
   if vim.bo.filetype == 'brodir' then
     local line = api.nvim_win_get_cursor(0)[1]
-    return getline(line-1)
+    return api.nvim_buf_get_lines(0, line-1, line, false)[1]
   end
   return buf_name(0)
 end
@@ -216,12 +218,12 @@ function M.open(path, splitcmd)
   path = path or get_path()
 
   if splitcmd then
-    if fn.filereadable(path) == 1 then
+    if luv.fs_stat(path) then
       if vim.bo.filetype == 'brodir' and fn.win_gettype() == 'popup' then
         -- close the brodir float
         api.nvim_win_close(0, false)
       end
-      vim.cmd('keepalt '..splitcmd..' '..fn.fnameescape(path))
+      vim.cmd[splitcmd]{ path, mods = { keepalt = true } }
       return
     end
 

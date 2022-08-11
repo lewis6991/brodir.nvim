@@ -1,9 +1,3 @@
--- if vim.fn.exists("b:did_ftplugin") == 1 then
---   return
--- end
-
--- vim.b.did_ftplugin = 1
-
 local function map(mode)
   return function(first)
     return function(second)
@@ -40,12 +34,16 @@ map 'n' 'g?' {':help brodir-mappings<CR>', silent=true}
 map 'n' '/' {'/\\ze[^/]*[/]\\=$<Home>'}
 map 'n' '?' {'?\\ze[^/]*[/]\\=$<Home>'}
 
-local module = require('brodir')
+local function map_open(a)
+  return function()
+    require('brodir').open(nil, a)
+  end
+end
 
-map 'n' '<CR>'  {function() module.open(nil, 'edit'   ) end, silent=true}
-map 'n' 'v'     {function() module.open(nil, 'vsplit' ) end, silent=true}
-map 'n' 'V'     {function() module.open(nil, 'vsplit' ) end, silent=true}
-map 'n' 's'     {function() module.open(nil, 'split'  ) end, silent=true}
-map 'n' 'S'     {function() module.open(nil, 'split'  ) end, silent=true}
-map 'n' 't'     {function() module.open(nil, 'tabedit') end, silent=true}
-map 'n' 'T'     {function() module.open(nil, 'tabedit') end, silent=true}
+map 'n' '<CR>' {map_open('edit'   )}
+map 'n' 'v'    {map_open('vsplit' )}
+map 'n' 'V'    {map_open('vsplit' )}
+map 'n' 's'    {map_open('split'  )}
+map 'n' 'S'    {map_open('split'  )}
+map 'n' 't'    {map_open('tabedit')}
+map 'n' 'T'    {map_open('tabedit')}
