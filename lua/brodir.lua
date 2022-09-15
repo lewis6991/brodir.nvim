@@ -9,6 +9,9 @@ local format = string.format
 
 local buf_name = api.nvim_buf_get_name
 
+-- Buffer to use for floats and new windows
+local dbuf = api.nvim_create_buf(false, true)
+
 local function getlines(buf)
   return api.nvim_buf_get_lines(buf or 0, 0, -1, false)
 end
@@ -62,13 +65,13 @@ local function info()
 end
 
 local function msg_error(msg)
-  vim.notify(msg, vim.log.levels.WARN, {title = 'brodir'})
+  vim.notify(msg, vim.log.levels.ERROR, {title = 'brodir'})
 end
 
 local function normalize_dir(dir, silent)
   if not util.isdirectory(dir) then
     if not silent then
-      msg_error("invalid directory: '"..dir.."'")
+      error("invalid directory: '"..dir.."'")
     end
     return ''
   end
@@ -98,29 +101,21 @@ local function get_or_create_win(buf)
     end
   end
 
-  local win
+  local lines   = vim.o.lines
+  local columns = vim.o.columns
+  local width   = math.ceil(columns * 0.3)
+  local height  = math.ceil(lines * 0.8)
+  local top     = ((lines - height) / 2) - 1
 
-  if buf_name(0) == '' then
-    win = api.nvim_get_current_win()
-    api.nvim_win_set_buf(win, buf)
-  else
-    local lines   = vim.o.lines
-    local columns = vim.o.columns
-    local width   = math.ceil(columns * 0.3)
-    local height  = math.ceil(lines * 0.8)
-    local top     = ((lines - height) / 2) - 1
-    local left    = columns - width
-
-    win = api.nvim_open_win(buf, true, {
-      relative = 'editor',
-      row      = top,
-      col      = left,
-      width    = width,
-      height   = height,
-      style    = 'minimal',
-      border   = 'rounded'
-    })
-  end
+  local win = api.nvim_open_win(buf, true, {
+    relative = 'editor',
+    row      = top,
+    col      = 10000,
+    width    = width,
+    height   = height,
+    style    = 'minimal',
+    border   = 'rounded'
+  })
 
   -- Set the alternate buffer to itself
   fn.setreg('#', buf)
@@ -128,16 +123,36 @@ local function get_or_create_win(buf)
   return win
 end
 
--- Buffer to use for floats and new windows
-local dbuf = api.nvim_create_buf(false, true)
+local function set_buf_options(buf)
+  vim.bo[buf].filetype = 'brodir'
+  vim.bo[buf].buftype  = 'nofile'
+  vim.bo[buf].swapfile = false
+  if buf ~= dbuf then
+    vim.bo[buf].bufhidden = 'wipe'
+  end
+end
+
+local function delete_alt(buf)
+  local alt = api.nvim_buf_call(buf, function()
+    return fn.bufnr('#')
+  end)
+  if alt ~= buf and alt ~= -1 then
+    pcall(api.nvim_buf_delete, alt, {force=true})
+  end
+end
+
+set_buf_options(dbuf)
+
+local function is_brodir(buf)
+  return vim.bo[buf].filetype == 'brodir'
+end
 
 local function get_buf(dir)
-  for _, b in ipairs(api.nvim_list_bufs()) do
-    if vim.bo[b].filetype == 'brodir' or normalize_dir(buf_name(b), true) == dir then
-      -- Buf with dir already open
-      return b
-    end
+  -- Prioritize current buffer
+  if is_brodir(0) or buf_name(0) == '' or normalize_dir(buf_name(0), true) == dir then
+    return api.nvim_get_current_buf()
   end
+
   return dbuf
 end
 
@@ -147,21 +162,16 @@ local handlers = {
   'brodir.handlers.icons'
 }
 
-local function buf_render(buf, dir, from_path)
+local function buf_render(dir, from_path)
+  dir = normalize_dir(dir)
+
+  local buf = get_buf(dir)
   api.nvim_buf_set_name(buf, dir)
 
+  set_buf_options(buf)
   -- nvim_buf_set_name creates an alternate buffer with the name we are changing
   -- from. Delete it.
-  local alt = api.nvim_buf_call(buf, function()
-    return fn.bufnr('#')
-  end)
-  if alt ~= buf and alt ~= -1 then
-    pcall(api.nvim_buf_delete, alt, {force=true})
-  end
-
-  vim.bo[buf].filetype = 'brodir'
-  vim.bo[buf].buftype  = 'nofile'
-  vim.bo[buf].swapfile = false
+  delete_alt(buf)
 
   local win = get_or_create_win(buf)
 
@@ -171,6 +181,9 @@ local function buf_render(buf, dir, from_path)
   vim.wo[win].conceallevel  = 2
 
   local lines = list_dir(dir)
+  if fn.win_gettype(win) == 'popup' then
+    api.nvim_win_set_height(win, math.min(#lines, math.ceil(vim.o.lines * 0.8)))
+  end
 
   vim.bo[buf].modifiable = true
 
@@ -249,7 +262,7 @@ function M.open(path, splitcmd)
   end
 
   local from_path = fnamemodify(buf_name(0), ':p')
-  buf_render(get_buf(dir), dir, from_path)
+  buf_render(dir, from_path)
 end
 
 local function setup_autocmds()
