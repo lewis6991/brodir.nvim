@@ -219,15 +219,16 @@ function M.open(path, splitcmd)
 
   if splitcmd then
     if luv.fs_stat(path) then
-      if vim.bo.filetype == 'brodir' and fn.win_gettype() == 'popup' then
-        -- close the brodir float
-        api.nvim_win_close(0, false)
+      if not util.isdirectory(path) then
+        if vim.bo.filetype == 'brodir' and fn.win_gettype() == 'popup' then
+          -- close the brodir float
+          api.nvim_win_close(0, false)
+        end
+        print(splitcmd, path)
+        vim.cmd[splitcmd]{ path, mods = { keepalt = true } }
+        return
       end
-      vim.cmd[splitcmd]{ path, mods = { keepalt = true } }
-      return
-    end
-
-    if not util.isdirectory(path) then -- sanity check
+    else
       msg_error("invalid (access denied?): "..path)
     end
   end
