@@ -1,49 +1,32 @@
-local function map(mode)
-  return function(first)
-    return function(second)
-      local opts = {}
-      if type(second) == 'table' then
-        opts = second
-        second = opts[1]
-        opts[1] = nil
-      end
-      opts.buffer = true
-      vim.keymap.set(mode, first, second, opts)
-    end
+local function nmap(first, second, opts)
+  vim.keymap.set('n', first, second, opts)
+end
+
+local function wrap(f, ...)
+  local args = {...}
+  return function()
+    f(unpack(args))
   end
 end
 
-if vim.fn.hasmapto('<Plug>(brodir_quit)', 'n') == 0 then
-  map 'n' '<ESC>' {'<Plug>(brodir_quit)', nowait=true, silent=true}
-  map 'n' 'q'     {'<Plug>(brodir_quit)', nowait=true, silent=true}
-end
+local brodir = require('brodir')
 
-if vim.fn.hasmapto('<Plug>(brodir_K)', 'n') == 0 then
-  map {'n', 'x'} 'K' {'<Plug>(brodir_K)', nowait=true}
-end
+nmap('<ESC>', '<cmd>bdelete!<cr>'   , {nowait=true, silent=true})
+nmap('q'    , '<cmd>bdelete!<cr>'   , {nowait=true, silent=true})
+nmap('K'    , wrap(brodir.info)     , {nowait=true})
+nmap('-'    , wrap(brodir.open_up)  , {nowait=true})
+nmap('~'    , wrap(brodir.open, '~'), {nowait=true, silent=true})
 
-if vim.fn.hasmapto('<Plug>(brodir_up)', 'n') == 0 then
-  map 'n' '-' {'<Plug>(brodir_up)', nowait=true}
-end
-
-map 'n' '~' {':<C-U>Brodir ~/<CR>', nowait=true, silent=true}
-
-map 'n' 'g?' {':help brodir-mappings<CR>', silent=true}
+nmap('g?', '<cmd>help brodir-mappings<CR>', {silent=true})
 
 -- Buffer-local / and ? mappings to skip the concealed path fragment.
-map 'n' '/' {'/\\ze[^/]*[/]\\=$<Home>'}
-map 'n' '?' {'?\\ze[^/]*[/]\\=$<Home>'}
+nmap('/', '/\\ze[^/]*[/]\\=$<Home>')
+nmap('?', '?\\ze[^/]*[/]\\=$<Home>')
 
-local function map_open(a)
-  return function()
-    require('brodir').open(nil, a)
-  end
-end
-
-map 'n' '<CR>' {map_open('edit'   )}
-map 'n' 'v'    {map_open('vsplit' )}
-map 'n' 'V'    {map_open('vsplit' )}
-map 'n' 's'    {map_open('split'  )}
-map 'n' 'S'    {map_open('split'  )}
-map 'n' 't'    {map_open('tabedit')}
-map 'n' 'T'    {map_open('tabedit')}
+nmap('<CR>', wrap(brodir.open, nil, 'edit'   ))
+nmap('v'   , wrap(brodir.open, nil, 'vsplit' ))
+nmap('V'   , wrap(brodir.open, nil, 'vsplit' ))
+nmap('s'   , wrap(brodir.open, nil, 'split'  ))
+nmap('S'   , wrap(brodir.open, nil, 'split'  ))
+nmap('t'   , wrap(brodir.open, nil, 'tabedit'))
+nmap('T'   , wrap(brodir.open, nil, 'tabedit'))

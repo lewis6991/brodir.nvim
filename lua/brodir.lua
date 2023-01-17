@@ -12,11 +12,13 @@ local buf_name = api.nvim_buf_get_name
 -- Buffer to use for floats and new windows
 local dbuf = api.nvim_create_buf(false, true)
 
+local M = {}
+
 local function getlines(buf)
   return api.nvim_buf_get_lines(buf or 0, 0, -1, false)
 end
 
-local function info()
+function M.info()
   local dirsize = vim.v.count
   local paths = getlines()
 
@@ -141,8 +143,6 @@ local function delete_alt(buf)
   end
 end
 
-set_buf_options(dbuf)
-
 local function is_brodir(buf)
   return vim.bo[buf].filetype == 'brodir'
 end
@@ -206,8 +206,6 @@ local function buf_render(dir, from_path)
   -- Place cursor on the tail (last path segment).
   fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
 end
-
-local M = {}
 
 function M.open_up(splitcmd)
   local path = vim.fs.dirname(buf_name(0))
@@ -288,23 +286,12 @@ local function setup_autocmds()
   })
 end
 
+local function hl_link(hl, link)
+  api.nvim_set_hl(0, hl, { link = link, default = true })
+end
+
 function M.setup()
-  local function keymap(mode, l, r)
-    if type(r) == 'function' then
-      local r1 = r
-      r = function() r1() end
-    end
-    vim.keymap.set(mode, l, r, {silent=true})
-  end
-
-  keymap('n', '-', M.open)
-  keymap('n', '<Plug>(brodir_up)'  , M.open_up)
-  keymap('n', '<Plug>(brodir_quit)', [[<cmd>bdelete!<CR>]])
-  keymap({'n', 'x'}, '<Plug>(brodir_K)', info)
-
-  local function hl_link(hl, link)
-    api.nvim_set_hl(0, hl, { link = link, default = true })
-  end
+  vim.keymap.set('n', '-', M.open, {silent=true})
 
   hl_link('BrodirSuffix'  , 'SpecialKey')
   hl_link('BrodirPathTail', 'Directory' )
@@ -312,7 +299,5 @@ function M.setup()
 
   setup_autocmds()
 end
-
-M.setup()
 
 return M
