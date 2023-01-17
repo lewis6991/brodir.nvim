@@ -14,45 +14,38 @@ local dbuf = api.nvim_create_buf(false, true)
 
 local M = {}
 
-local function getlines(buf)
-  return api.nvim_buf_get_lines(buf or 0, 0, -1, false)
+local function get_stat(f)
+  f = vim.trim(f)
+  -- Slash decides how getftype() classifies directory symlinks. #138
+  local noslash = fn.substitute(f, fn.escape('/','\\')..'$', '', 'g')
+
+  local stat = luv.fs_stat(f)
+
+  if not stat then
+    local link = luv.fs_readlink(f)
+    if link then
+      return 'broken link -> '..link
+    end
+    return '?'
+  end
+
+  local size = stat.size
+  if size > 0 then
+    size = format('%.2f', size/1000)..'K'
+  elseif size == 0 then
+    size = fn.matchstr(fn.system{'du', '-hs', f}, '\\S\\+')
+  end
+  local ty = stat.type:sub(1, 1)
+  local time = fn.strftime('%Y-%m-%d %H:%M', stat.mtime.sec)
+  local link = 'link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.')
+  return format('%s %s %s %6s %s', ty, fn.getfperm(f), time, size, link)
 end
 
 function M.info()
-  local dirsize = vim.v.count
-  local paths = getlines()
-
-  for i, f in ipairs(paths) do
-    f = vim.trim(f)
-    -- Slash decides how getftype() classifies directory symlinks. #138
-    local noslash = fn.substitute(f, fn.escape('/','\\')..'$', '', 'g')
-
-    local stat = luv.fs_stat(f)
-
-    local msg
-    if not stat then
-      local link = luv.fs_readlink(f)
-      if link then
-        msg = 'broken link -> '..link
-      else
-        msg = '?'
-      end
-    else
-      local size = stat.size
-      if size > 0 then
-        size = format('%.2f', size/1000)..'K'
-      elseif size == 0 and dirsize <= 1 then
-        size = fn.matchstr(fn.system{'du', '-hs', f}, '\\S\\+')
-      end
-      local ty = stat.type:sub(1, 1)
-      local time = fn.strftime('%Y-%m-%d %H:%M', stat.mtime.sec)
-      local link = 'link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.')
-      msg = format('%s %s %s %6s %s', ty, fn.getfperm(f), time, size, link)
-    end
-
+  for i, f in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
     local id = api.nvim_buf_set_extmark(0, ns, i-1, 0, {
       id = i,
-      virt_text = {{ msg , 'Comment' }},
+      virt_text = {{ get_stat(f) , 'Comment' }},
       virt_text_pos = 'right_align'
     })
 
