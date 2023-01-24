@@ -1,4 +1,6 @@
 local function nmap(first, second, opts)
+  opts = opts or {}
+  opts.buffer = true
   vim.keymap.set('n', first, second, opts)
 end
 
