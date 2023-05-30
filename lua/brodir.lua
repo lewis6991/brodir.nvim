@@ -168,12 +168,16 @@ local function buf_render(dir, from_path)
 
   local win = get_or_create_win(buf)
 
-  vim.wo[win].cursorline     = true
-  vim.wo[win].number         = false
-  vim.wo[win].relativenumber = false
-  vim.wo[win].wrap           = false
-  vim.wo[win].concealcursor  = 'nvc'
-  vim.wo[win].conceallevel   = 2
+  for name, v in pairs {
+    cursorline     = true,
+    number         = false,
+    relativenumber = false,
+    wrap           = false,
+    concealcursor  = 'nvc',
+    conceallevel   = 2
+  } do
+  api.nvim_set_option_value(name, v, { scope = 'local', win = win })
+end
 
   local lines = list_dir(dir)
   if fn.win_gettype(win) == 'popup' then
