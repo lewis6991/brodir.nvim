@@ -234,6 +234,8 @@ function M.open(path, splitcmd)
           -- close the brodir float
           api.nvim_win_close(0, false)
         end
+        -- Reduce the path since this will be used as the buffer name
+        path = fnamemodify(path, ':.')
         print(splitcmd, path)
         vim.cmd[splitcmd]{ path, mods = { keepalt = true } }
         return
