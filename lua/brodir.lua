@@ -14,6 +14,8 @@ local dbuf = api.nvim_create_buf(false, true)
 
 local M = {}
 
+--- @param f string
+--- @return string
 local function get_stat(f)
   f = vim.trim(f)
   -- Slash decides how getftype() classifies directory symlinks. #138
@@ -30,15 +32,16 @@ local function get_stat(f)
   end
 
   local size = stat.size
+  local size_str ---@type string
   if size > 0 then
-    size = format('%.2f', size/1000)..'K'
+    size_str = format('%.2f', size/1000)..'K'
   elseif size == 0 then
-    size = fn.matchstr(fn.system{'du', '-hs', f}, '\\S\\+')
+    size_str = fn.matchstr(fn.system{'du', '-hs', f}, '\\S\\+')
   end
   local ty = stat.type:sub(1, 1)
   local time = fn.strftime('%Y-%m-%d %H:%M', stat.mtime.sec)
   local link = 'link' ~= fn.getftype(noslash) and '' or ' -> '..fnamemodify(fn.resolve(f),':~:.')
-  return format('%s %s %s %6s %s', ty, fn.getfperm(f), time, size, link)
+  return format('%s %s %s %6s %s', ty, fn.getfperm(f), time, size_str, link)
 end
 
 function M.info()
@@ -59,10 +62,13 @@ function M.info()
   end
 end
 
+--- @param msg string
 local function msg_error(msg)
   vim.notify(msg, vim.log.levels.ERROR, {title = 'brodir'})
 end
 
+--- @param dir string
+--- @param silent? boolean
 local function normalize_dir(dir, silent)
   if not util.isdirectory(dir) then
     if not silent then
@@ -79,8 +85,10 @@ local function normalize_dir(dir, silent)
   return dir
 end
 
+--- @param dir string
+--- @return string[]
 local function list_dir(dir)
-  local paths = {}
+  local paths = {} --- @type string[]
   for p, ty in vim.fs.dir(dir) do
     local trailslash = ty == 'directory' and '/' or ''
     paths[#paths+1] = dir..p..trailslash
@@ -89,6 +97,8 @@ local function list_dir(dir)
   return paths
 end
 
+--- @param buf integer
+--- @return integer win
 local function get_or_create_win(buf)
   for _, w in ipairs(api.nvim_list_wins()) do
     if api.nvim_win_get_buf(w) == buf then
@@ -118,6 +128,7 @@ local function get_or_create_win(buf)
   return win
 end
 
+--- @param buf integer
 local function set_buf_options(buf)
   vim.bo[buf].filetype = 'brodir'
   vim.bo[buf].buftype  = 'nofile'
@@ -127,6 +138,7 @@ local function set_buf_options(buf)
   end
 end
 
+--- @param buf integer
 local function delete_alt(buf)
   local alt = api.nvim_buf_call(buf, function()
     return fn.bufnr('#')
@@ -136,10 +148,14 @@ local function delete_alt(buf)
   end
 end
 
+--- @param buf integer
+--- @return boolean
 local function is_brodir(buf)
   return vim.bo[buf].filetype == 'brodir'
 end
 
+--- @param dir string
+--- @return integer
 local function get_buf(dir)
   -- Prioritize current buffer
   if is_brodir(0) or buf_name(0) == '' or normalize_dir(buf_name(0), true) == dir then
@@ -155,6 +171,8 @@ local handlers = {
   'brodir.handlers.icons'
 }
 
+--- @param dir string
+--- @param from_path string
 local function buf_render(dir, from_path)
   dir = normalize_dir(dir)
 
@@ -176,8 +194,8 @@ local function buf_render(dir, from_path)
     concealcursor  = 'nvc',
     conceallevel   = 2
   } do
-  api.nvim_set_option_value(name, v, { scope = 'local', win = win })
-end
+    api.nvim_set_option_value(name, v, { scope = 'local', win = win })
+  end
 
   local lines = list_dir(dir)
   if fn.win_gettype(win) == 'popup' then
@@ -200,25 +218,29 @@ end
     require(handler)(buf, dir, lines)
   end
 
-  fn.search([[\V\^\s\*]]..from_path..'\\$', 'cw')
+  fn.search([[\V\^\s\*]] .. from_path .. '\\$', 'cw')
 
   -- Place cursor on the tail (last path segment).
   fn.search('\\/\\zs[^\\/]\\+\\/\\?$', 'c', fn.line('.'))
 end
 
+--- @param splitcmd? string
 function M.open_up(splitcmd)
-  local path = vim.fs.dirname(buf_name(0))
+  local path = assert(vim.fs.dirname(buf_name(0)))
   M.open(path, splitcmd)
 end
 
+--- @return string
 local function get_path()
   if vim.bo.filetype == 'brodir' then
     local line = api.nvim_win_get_cursor(0)[1]
-    return api.nvim_buf_get_lines(0, line-1, line, false)[1]
+    return api.nvim_buf_get_lines(0, line - 1, line, false)[1]
   end
   return buf_name(0)
 end
 
+--- @param path? string
+--- @param splitcmd? string
 function M.open(path, splitcmd)
   if vim.o.autochdir then
     msg_error("'autochdir' is not supported")
@@ -252,10 +274,10 @@ function M.open(path, splitcmd)
   dir = normalize_dir(dir, is_uri)
 
   if not util.isdirectory(dir) then
-    api.nvim_err_writeln('brodir: fatal: buffer name is not a directory: '..dir)
+    api.nvim_err_writeln('brodir: fatal: buffer name is not a directory: ' .. dir)
     error('DEBUG')
     return
-  elseif dir == '' then  -- normalize_dir() already showed error.
+  elseif dir == '' then -- normalize_dir() already showed error.
     error('DEBUG')
     return
   end

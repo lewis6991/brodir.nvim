@@ -4,6 +4,8 @@ local util = require('brodir.util')
 
 local ns = api.nvim_create_namespace('brodir.handlers.git')
 
+--- @param dir string
+--- @return table<string,string>?
 local function git_status(dir)
   local toplevel = fn.systemlist{'git', '-C', dir, 'rev-parse', '--show-toplevel'}[1]
 
@@ -13,7 +15,7 @@ local function git_status(dir)
 
   local entries = fn.systemlist{'git', '-C', dir, 'status', '.', '--porcelain'}
 
-  local ret = {}
+  local ret = {} --- @type table<string,string>
   for _, entry in ipairs(entries) do
     if #entry > 4 then
       local s = entry:sub(2, 2)
@@ -31,6 +33,9 @@ local GITSTATUS_HL = {
   D = 'ErrorMsg',
 }
 
+--- @param buf integer
+--- @param dir string
+--- @param lines string[]
 return function(buf, dir, lines)
   local status = git_status(dir)
 
