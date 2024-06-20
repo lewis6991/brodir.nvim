@@ -122,7 +122,7 @@ local function get_or_create_win(buf)
     border   = 'rounded'
   })
 
-  vim.wo[win][buf].signcolumn = 'auto'
+  vim.wo[win][0].signcolumn = 'auto'
 
   -- Set the alternate buffer to itself
   fn.setreg('#', buf)
