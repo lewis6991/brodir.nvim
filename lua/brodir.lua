@@ -97,6 +97,12 @@ local function list_dir(dir)
   return paths
 end
 
+local did_hl = false
+
+local function hl_link(hl, link)
+  api.nvim_set_hl(0, hl, { link = link, default = true })
+end
+
 --- @param buf integer
 --- @return integer win
 local function get_or_create_win(buf)
@@ -111,6 +117,12 @@ local function get_or_create_win(buf)
   local width   = math.ceil(columns * 0.3)
   local height  = math.ceil(lines * 0.8)
   local top     = ((lines - height) / 2) - 1
+
+  if not did_hl then
+    hl_link('BrodirSuffix'  , 'SpecialKey')
+    hl_link('BrodirPathTail', 'Directory' )
+    hl_link('BrodirArg'     , 'Todo'      )
+  end
 
   local win = api.nvim_open_win(buf, true, {
     relative = 'editor',
@@ -286,43 +298,6 @@ function M.open(path, splitcmd)
 
   local from_path = fnamemodify(buf_name(0), ':p')
   buf_render(dir, from_path)
-end
-
-local function setup_autocmds()
-  local group = api.nvim_create_augroup('brodir', {})
-
-  -- Remove netrw directory handlers.
-  api.nvim_create_autocmd('VimEnter', {
-    group = group,
-    callback = function()
-      api.nvim_create_augroup('FileExplorer', {}) -- clear the group
-      api.nvim_del_augroup_by_name('FileExplorer')
-    end
-  })
-
-  api.nvim_create_autocmd('BufEnter', {
-    group = group,
-    callback = function()
-      local path = luv.fs_realpath(buf_name(0)) or ''
-      if vim.bo.filetype ~= 'brodir' and util.isdirectory(path) then
-        M.open()
-      end
-    end
-  })
-end
-
-local function hl_link(hl, link)
-  api.nvim_set_hl(0, hl, { link = link, default = true })
-end
-
-function M.setup()
-  vim.keymap.set('n', '-', M.open, {silent=true})
-
-  hl_link('BrodirSuffix'  , 'SpecialKey')
-  hl_link('BrodirPathTail', 'Directory' )
-  hl_link('BrodirArg'     , 'Todo'      )
-
-  setup_autocmds()
 end
 
 return M
